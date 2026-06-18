@@ -1,0 +1,48 @@
+server:
+  port: 
+  error:
+    include-stacktrace: 
+    include-message: 
+
+spring:
+  application:
+    name: DeliveryInsider
+
+  datasource:
+    url: 
+    username: 
+    password: 
+    driver-class-name: 
+
+mybatis:
+  mapper-locations: 
+  type-aliases-package: 
+  configuration:
+    map-underscore-to-camel-case: true
+
+logging:
+  file:
+    name: 
+  level:
+    root: 
+    com.deliveryinsider: 
+    org.springframework.security: 
+
+security:
+  jwt:
+    secure: 
+    issuer: 
+    type: 
+    access-token-expiry: 
+    refresh-token-expiry: 
+    refresh-token-cookie-name: 
+    refresh-token-cookie-expiry: 
+    secret: 
+    header-key: 
+    scheme: 
+    reiss-uri: 
+
+cors:
+  allowed-origins:
+   
+  max-age: 
