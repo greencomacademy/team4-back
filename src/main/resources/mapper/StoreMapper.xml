@@ -1,0 +1,184 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.deliveryinsider.domain.store.mapper.StoreMapper">
+
+    <!-- 회원이 이미 활성 매장을 등록했는지 확인 -->
+    <select id="countByUserId" resultType="int">
+        SELECT COUNT(*)
+        FROM stores
+        WHERE user_id = #{userId}
+        AND deleted_at IS NULL
+    </select>
+
+    <!-- 활성 매장 중 사업자등록번호 중복 확인 -->
+    <select id="countByBusinessNumber" resultType="int">
+        SELECT COUNT(*)
+        FROM stores
+        WHERE business_number = #{businessNumber}
+        AND deleted_at IS NULL
+    </select>
+
+    <!-- 매장 등록 -->
+    <insert id="save"
+            parameterType="com.deliveryinsider.domain.store.entities.Store"
+            useGeneratedKeys="true"
+            keyProperty="id">
+
+        INSERT INTO stores (
+        user_id,
+        store_name,
+        business_number,
+        business_status,
+        business_verified_at,
+        address,
+        address_detail,
+        industry_type,
+        kitchen_capacity,
+        open_time,
+        close_time
+        )
+        VALUES (
+        #{userId},
+        #{storeName},
+        #{businessNumber},
+        #{businessStatus},
+        #{businessVerifiedAt},
+        #{address},
+        #{addressDetail},
+        #{industryType},
+        #{kitchenCapacity},
+        #{openTime},
+        #{closeTime}
+        )
+
+    </insert>
+
+    <!-- 매장 PK 조회 -->
+    <select id="findById"
+            resultType="com.deliveryinsider.domain.store.entities.Store">
+
+        SELECT
+        id,
+        user_id,
+        store_name,
+        business_number,
+        business_status,
+        business_verified_at,
+        address,
+        address_detail,
+        industry_type,
+        kitchen_capacity,
+        open_time,
+        close_time,
+        created_at,
+        updated_at,
+        deleted_at
+        FROM stores
+        WHERE id = #{id}
+        AND deleted_at IS NULL
+
+    </select>
+
+    <!-- 로그인한 회원의 활성 매장 조회 -->
+    <select id="findByUserId"
+            resultType="com.deliveryinsider.domain.store.entities.Store">
+
+        SELECT
+        id,
+        user_id,
+        store_name,
+        business_number,
+        business_status,
+        business_verified_at,
+        address,
+        address_detail,
+        industry_type,
+        kitchen_capacity,
+        open_time,
+        close_time,
+        created_at,
+        updated_at,
+        deleted_at
+        FROM stores
+        WHERE user_id = #{userId}
+        AND deleted_at IS NULL
+
+    </select>
+
+    <!-- 자기 매장을 제외한 사업자등록번호 중복 검사 -->
+    <select id="countByBusinessNumberExceptStoreId"
+            resultType="int">
+
+        SELECT COUNT(*)
+        FROM stores
+        WHERE business_number = #{businessNumber}
+        AND id != #{storeId}
+        AND deleted_at IS NULL
+
+    </select>
+
+    <!-- 매장 부분 수정 -->
+    <update id="update"
+            parameterType="com.deliveryinsider.domain.store.entities.Store">
+
+        UPDATE stores
+
+        <set>
+            <if test="storeName != null">
+                store_name = #{storeName},
+            </if>
+
+            <if test="businessNumber != null">
+                business_number = #{businessNumber},
+                business_status = 'PENDING',
+                business_verified_at = NULL,
+            </if>
+
+            <if test="address != null">
+                address = #{address},
+            </if>
+
+            <if test="addressDetail != null">
+                address_detail = #{addressDetail},
+            </if>
+
+            <if test="industryType != null">
+                industry_type = #{industryType},
+            </if>
+
+            <if test="kitchenCapacity != null">
+                kitchen_capacity = #{kitchenCapacity},
+            </if>
+
+            <if test="openTime != null">
+                open_time = #{openTime},
+            </if>
+
+            <if test="closeTime != null">
+                close_time = #{closeTime},
+            </if>
+
+            updated_at = NOW()
+        </set>
+
+        WHERE id = #{id}
+        AND user_id = #{userId}
+        AND deleted_at IS NULL
+
+    </update>
+
+    <!-- 매장 소프트 삭제 -->
+    <update id="softDeleteByUserId">
+
+        UPDATE stores
+        SET deleted_at = NOW(),
+        updated_at = NOW()
+        WHERE user_id = #{userId}
+        AND deleted_at IS NULL
+
+    </update>
+
+</mapper>
