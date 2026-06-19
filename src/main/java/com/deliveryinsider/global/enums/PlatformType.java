@@ -2,7 +2,7 @@ package com.deliveryinsider.global.enums;
 
 public enum PlatformType {
     BAEMIN,
-    COUPANG,
+    COUPANG_EATS,
     YOGIYO,
     DDANGYO
 }
