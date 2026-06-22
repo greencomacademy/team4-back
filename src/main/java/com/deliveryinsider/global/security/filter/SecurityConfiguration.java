@@ -7,9 +7,11 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
+import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 
 @Configuration
 @EnableWebSecurity
@@ -17,28 +19,66 @@ import org.springframework.security.web.SecurityFilterChain;
 public class SecurityConfiguration {
 
     private final CorsConfig corsConfig;
+    private final TokenAuthenticationFilter tokenAuthenticationFilter;
+    private final SecurityExceptionHandler securityExceptionHandler;
 
     @Bean
-    public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
+    public SecurityFilterChain securityFilterChain(
+        HttpSecurity http
+    ) throws Exception {
+
         return http
-                .csrf(AbstractHttpConfigurer::disable)
-                .cors(cors -> cors.configurationSource(corsConfig.corsConfigurationSource()))
-                .formLogin(AbstractHttpConfigurer::disable)
-                .httpBasic(AbstractHttpConfigurer::disable)
-                .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/api/test").permitAll()
-                        .requestMatchers("/api/auth/register").permitAll()
-                        .requestMatchers("/api/auth/login").permitAll()
-                        .requestMatchers("/api/auth/reissue-token").permitAll()
-                        .requestMatchers("/api/store/**").authenticated()
-                        // .requestMatchers("/api/store/**").permitAll() // <-- 이렇게 되어있다면 인증 객체가 null이 됩니다.
-
-
-                        // main 단계에서는 개발 편의를 위해 일단 전체 허용
-                        .anyRequest().permitAll()
+            // JWT 방식이므로 서버 세션을 사용하지 않음
+            .sessionManagement(session ->
+                session.sessionCreationPolicy(
+                    SessionCreationPolicy.STATELESS
                 )
-                .build();
+            )
+
+            // REST API + JWT 방식 기본 설정
+            .csrf(AbstractHttpConfigurer::disable)
+            .formLogin(AbstractHttpConfigurer::disable)
+            .httpBasic(AbstractHttpConfigurer::disable)
+
+            // 기존 CorsConfig 사용
+            .cors(cors ->
+                cors.configurationSource(
+                    corsConfig.corsConfigurationSource()
+                )
+            )
+
+            // JWT 필터를 기본 로그인 필터보다 먼저 실행
+            .addFilterBefore(
+                tokenAuthenticationFilter,
+                UsernamePasswordAuthenticationFilter.class
+            )
+
+            // API 접근 권한 설정
+            .authorizeHttpRequests(auth -> auth
+                .requestMatchers(
+                    "/api/test",
+                    "/api/auth/register",
+                    "/api/auth/login",
+                    "/api/auth/reissue-token"
+                ).permitAll()
+
+                // 위 주소를 제외한 API는 로그인 필요
+                .anyRequest().authenticated()
+            )
+
+            // 401, 403 예외 처리 연결
+            .exceptionHandling(exception -> exception
+                .authenticationEntryPoint(
+                    securityExceptionHandler
+                )
+                .accessDeniedHandler(
+                    securityExceptionHandler
+                )
+            )
+
+            .build();
     }
+
     @Bean
     public PasswordEncoder passwordEncoder() {
         return new BCryptPasswordEncoder();
