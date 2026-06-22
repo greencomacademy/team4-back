@@ -1,0 +1,81 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper
+    PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+    "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.deliveryinsider.domain.order.mapper.OrderMapper">
+
+    <resultMap id="orderResultMap"
+               type="com.deliveryinsider.domain.order.entities.Order">
+
+        <id property="id"
+            column="id"/>
+
+        <result property="storeId"
+                column="store_id"/>
+
+        <result property="orderNo"
+                column="order_no"/>
+
+        <result property="platformType"
+                column="platform_type"/>
+
+        <result property="orderStatus"
+                column="order_status"/>
+
+        <result property="totalAmount"
+                column="total_amount"/>
+
+        <result property="commissionAmount"
+                column="commission_amount"/>
+
+        <result property="couponCost"
+                column="coupon_cost"/>
+
+        <result property="deliveryFee"
+                column="delivery_fee"/>
+
+        <result property="platformSupportAmount"
+                column="platform_support_amount"/>
+
+        <result property="totalMenuCost"
+                column="total_menu_cost"/>
+
+        <result property="totalPackagingFee"
+                column="total_packaging_fee"/>
+
+        <result property="netProfit"
+                column="net_profit"/>
+
+        <result property="totalCookingTime"
+                column="total_cooking_time"/>
+
+        <result property="orderedAt"
+                column="ordered_at"/>
+
+        <result property="cookingStartedAt"
+                column="cooking_started_at"/>
+
+        <result property="completedAt"
+                column="completed_at"/>
+
+        <result property="canceledAt"
+                column="canceled_at"/>
+
+        <result property="refundedAt"
+                column="refunded_at"/>
+
+        <result property="createdAt"
+                column="created_at"/>
+
+        <result property="updatedAt"
+                column="updated_at"/>
+
+        <result property="deletedAt"
+                column="deleted_at"/>
+
+    </resultMap>
+    
+    
+    
+</mapper>
