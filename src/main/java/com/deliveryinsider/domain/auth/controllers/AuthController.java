@@ -67,26 +67,6 @@ public class AuthController {
     }
 
     /**
-     * 로그아웃 API
-     * - DB의 Refresh Token 삭제
-     * - Refresh Token Cookie 삭제
-     */
-    @PostMapping("/logout")
-    public ResponseEntity<GlobalRes<Void>> logout(
-            HttpServletRequest request,
-            HttpServletResponse response
-    ) {
-        authService.logout(request, response);
-
-        return ResponseEntity.ok(
-                GlobalRes.<Void>builder()
-                        .code("00")
-                        .message("로그아웃 성공")
-                        .build()
-        );
-    }
-
-    /**
      * 회원가입 API
      * - 이메일 중복을 확인한다.
      * - 회원가입 진행
@@ -100,6 +80,21 @@ public class AuthController {
                 .code("00")
                 .message("회원가입 성공")
                 .data(result).build());
+    }
+    @PostMapping("/logout")
+    public ResponseEntity<GlobalRes<Void>> logout(
+        HttpServletRequest request,
+        HttpServletResponse response
+    ) {
+        authService.logout(request, response);
+
+        return ResponseEntity.ok(
+            GlobalRes.<Void>builder()
+                .code("00")
+                .message("로그아웃 성공")
+                .data(null)
+                .build()
+        );
     }
 
 }

@@ -37,7 +37,7 @@ public interface OrderMapper {
     OrderOperationSummaryProjection findOperationSummary(
         @Param("storeId") Long storeId
     );
-    // 로그인 사용자의 매장에 속한 주문 전체 삭제
+    // 로그인 사용자의 매장에 속한 주문 전체 삭제 - 현재 1차는 mock주문만 넣고 삭제함 
     int deleteAllByStoreId(
         @Param("storeId") Long storeId
     );

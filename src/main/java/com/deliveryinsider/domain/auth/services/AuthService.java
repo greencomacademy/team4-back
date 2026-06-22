@@ -184,20 +184,25 @@ public class AuthService {
                 );
 
         // 회원 조회
-        Long userId = Long.valueOf(
+        if (refreshToken != null) {
+            Long userId = Long.valueOf(
                 jwtProvider.extractClaims(refreshToken).getSubject()
-        );
-
-        User user = authMapper.findById(userId);
-
-        if (user == null) {
-            throw new NotRegisteredException(
-                    "존재하지 않는 회원입니다."
             );
-        }
 
-        // DB의 Refresh Token 삭제
-        authMapper.deleteRefreshToken(user.getId());
+
+            User user = authMapper.findById(userId);
+
+            if (user == null) {
+                throw new NotRegisteredException(
+                    "존재하지 않는 회원입니다."
+                );
+            }
+
+            if (user != null) {
+                // DB의 Refresh Token 삭제
+                authMapper.deleteRefreshToken(user.getId());
+            }
+        }
 
         // Cookie 삭제
         cookieManager.deleteCookie(
@@ -264,4 +269,5 @@ public class AuthService {
                 .email(savedUser.getEmail())
                 .build();
     }
+   
 }
