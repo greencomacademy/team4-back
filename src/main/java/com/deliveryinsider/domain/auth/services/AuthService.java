@@ -171,6 +171,42 @@ public class AuthService {
                 .build();
     }
 
+    @Transactional
+    public void logout(
+            HttpServletRequest request,
+            HttpServletResponse response
+    ) {
+        // Cookie에서 Refresh Token 조회
+        String refreshToken = jwtProvider
+                .extractRefreshToken(request)
+                .orElseThrow(() ->
+                        new InvalidTokenException("Refresh Token이 없습니다.")
+                );
+
+        // 회원 조회
+        Long userId = Long.valueOf(
+                jwtProvider.extractClaims(refreshToken).getSubject()
+        );
+
+        User user = authMapper.findById(userId);
+
+        if (user == null) {
+            throw new NotRegisteredException(
+                    "존재하지 않는 회원입니다."
+            );
+        }
+
+        // DB의 Refresh Token 삭제
+        authMapper.deleteRefreshToken(user.getId());
+
+        // Cookie 삭제
+        cookieManager.deleteCookie(
+                response,
+                jwtConfig.refreshTokenCookieName(),
+                jwtConfig.reissUri()
+        );
+    }
+
     /**
      * 회원가입 처리
      * - 이메일 중복 확인

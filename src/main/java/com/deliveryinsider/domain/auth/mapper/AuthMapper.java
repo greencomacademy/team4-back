@@ -17,6 +17,8 @@ public interface AuthMapper {
             @Param("refreshToken") String refreshToken
     );
 
+    int deleteRefreshToken(Long id);
+
 //    회원 ID로 조회
     User findById(Long id);
 

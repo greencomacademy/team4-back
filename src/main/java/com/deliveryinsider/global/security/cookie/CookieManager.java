@@ -43,4 +43,19 @@ public class CookieManager {
                 .filter(cookie -> cookie.getName().equals(name))
                 .findFirst();
     }
+
+    public void deleteCookie(
+            HttpServletResponse response,
+            String name,
+            String path
+    ) {
+        Cookie cookie = new Cookie(name, null);
+        cookie.setHttpOnly(true);
+        cookie.setSecure(false);
+        cookie.setPath(path);
+        cookie.setMaxAge(0);
+
+        response.addCookie(cookie);
+    }
+
 }
