@@ -13,6 +13,8 @@ public record StoreRes(
 
         String storeName,
 
+        String phone,
+
         String businessNumber,
 
         BusinessStatus businessStatus,

@@ -65,6 +65,7 @@ public class StoreService {
                 .kitchenCapacity(storeCreateReq.kitchenCapacity())
                 .openTime(storeCreateReq.openTime())
                 .closeTime(storeCreateReq.closeTime())
+                .phone(storeCreateReq.phone())
                 .build();
 
         // 4. DB 저장
@@ -113,6 +114,7 @@ public class StoreService {
         return StoreRes.builder()
                 .id(store.getId())
                 .storeName(store.getStoreName())
+                .phone(store.getPhone())
                 .businessNumber(store.getBusinessNumber())
                 .businessStatus(store.getBusinessStatus())
                 .businessVerifiedAt(store.getBusinessVerifiedAt())
@@ -178,6 +180,11 @@ public class StoreService {
                 storeUpdateReq.storeName()
         );
 
+        String changePhone = getChangedValue(
+                currentStore.getPhone(),
+                storeUpdateReq.phone()
+        );
+
         String changedAddress = getChangedValue(
                 currentStore.getAddress(),
                 storeUpdateReq.address()
@@ -186,6 +193,11 @@ public class StoreService {
         String changedAddressDetail = getChangedValue(
                 currentStore.getAddressDetail(),
                 storeUpdateReq.addressDetail()
+        );
+
+        BusinessStatus changeBusinessStatus = getChangedValue(
+                currentStore.getBusinessStatus(),
+                storeUpdateReq.businessStatus() != null ? BusinessStatus.valueOf(storeUpdateReq.businessStatus()):null
         );
 
         String changedIndustryType = getChangedValue(
@@ -216,7 +228,9 @@ public class StoreService {
                         || changedIndustryType != null
                         || changedKitchenCapacity != null
                         || changedOpenTime != null
-                        || changedCloseTime != null;
+                        || changedCloseTime != null
+                        || changePhone != null
+                        || changeBusinessStatus != null;
 
         if (!hasChangedValue) {
             return toStoreRes(currentStore);
@@ -235,7 +249,9 @@ public class StoreService {
                 .id(currentStore.getId())
                 .userId(userId)
                 .storeName(changedStoreName)
+                .phone(changePhone)
                 .businessNumber(changedBusinessNumber)
+                .businessStatus(changeBusinessStatus)
                 .address(changedAddress)
                 .addressDetail(changedAddressDetail)
                 .industryType(changedIndustryType)
