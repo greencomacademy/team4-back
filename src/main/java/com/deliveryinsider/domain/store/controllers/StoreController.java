@@ -14,7 +14,7 @@ import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequiredArgsConstructor
-@RequestMapping("/api/store")
+@RequestMapping("/api/stores")
 public class StoreController {
 
     private final StoreService storeService;
@@ -23,7 +23,7 @@ public class StoreController {
      * 매장 등록
      * POST /api/stores
      */
-    @PostMapping("/newStore")
+    @PostMapping("/newstore")
     public ResponseEntity<GlobalRes<StoreRes>> create(
             Authentication authentication,
             @Valid @RequestBody StoreCreateReq storeCreateReq

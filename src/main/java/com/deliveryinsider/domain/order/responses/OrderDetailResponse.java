@@ -1,6 +1,5 @@
-package com.deliveryinsider.domain.orders.responses;
+package com.deliveryinsider.domain.order.responses;
 
-import com.deliveryinsider.domain.orders.responses.OrderItemResponse;
 import com.deliveryinsider.global.enums.PlatformType;
 import com.deliveryinsider.global.enums.OrderStatus;
 

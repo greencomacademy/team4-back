@@ -3,7 +3,7 @@
         PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
 
-<mapper namespace="com.deliveryinsider.domain.store.mapper.StoreMapper">
+<mapper namespace="com.deliveryinsider.domain.store.mappers.StoreMapper">
 
     <resultMap id="storeResultMap" type="com.deliveryinsider.domain.store.entities.Store">
         <id column="id" property="id" />
@@ -77,7 +77,7 @@
     <!-- 매장 PK 조회 -->
     <select id="findById"
             resultMap="storeResultMap"
-            resultType="com.deliveryinsider.domain.store.entities.Store">
+           >
 
         SELECT
             *

@@ -1,4 +1,4 @@
-package com.deliveryinsider.domain.orders.entities;
+package com.deliveryinsider.domain.order.entities;
 
 import com.deliveryinsider.global.enums.PlatformType;
 import com.deliveryinsider.global.enums.OrderStatus;

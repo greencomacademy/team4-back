@@ -1,4 +1,4 @@
-package com.deliveryinsider.domain.orders.responses;
+package com.deliveryinsider.domain.order.responses;
 
 
 import com.deliveryinsider.global.enums.OrderStatus;
