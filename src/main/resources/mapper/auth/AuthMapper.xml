@@ -62,6 +62,12 @@
         WHERE id = #{id}
     </update>
 
+    <update id="deleteRefreshToken">
+        UPDATE users
+        SET refresh_token = NULL
+        WHERE id = #{id}
+    </update>
+
     <select id="findByRefreshToken"
             parameterType="string"
             resultType="com.deliveryinsider.domain.user.entities.User">
