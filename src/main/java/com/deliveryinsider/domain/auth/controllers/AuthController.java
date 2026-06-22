@@ -101,5 +101,20 @@ public class AuthController {
                 .message("회원가입 성공")
                 .data(result).build());
     }
+    @PostMapping("/logout")
+    public ResponseEntity<GlobalRes<Void>> logout(
+        HttpServletRequest request,
+        HttpServletResponse response
+    ) {
+        authService.logout(request, response);
+
+        return ResponseEntity.ok(
+            GlobalRes.<Void>builder()
+                .code("00")
+                .message("로그아웃 성공")
+                .data(null)
+                .build()
+        );
+    }
 
 }

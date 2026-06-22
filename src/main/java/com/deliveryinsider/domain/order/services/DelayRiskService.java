@@ -165,9 +165,7 @@ public class DelayRiskService {
 
     /**
      * 주방 부하 배수 계산
-     *
      * 정수 나눗셈을 이용한 올림 계산:
-     *
      * (현재 주문 수 + 처리량 - 1) / 처리량
      */
     private int calculateLoadMultiplier(
@@ -338,7 +336,6 @@ public class DelayRiskService {
 
     /**
      * 진행률 계산
-     *
      * 경과시간 / 조정 예상 조리시간 × 100
      */
     private BigDecimal calculateRawProgressRate(

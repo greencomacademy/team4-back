@@ -264,4 +264,29 @@ public class AuthService {
                 .email(savedUser.getEmail())
                 .build();
     }
+    @Transactional
+    public void logout(
+        HttpServletRequest request,
+        HttpServletResponse response
+    ) {
+        String refreshToken = jwtProvider
+            .extractRefreshToken(request)
+            .orElse(null);
+
+        if (refreshToken != null) {
+            User user = authMapper.findByRefreshToken(refreshToken);
+
+            if (user != null) {
+                authMapper.updateRefreshToken(user.getId(), null);
+            }
+        }
+
+        cookieManager.setCookie(
+            response,
+            jwtConfig.refreshTokenCookieName(),
+            "",
+            0,
+            jwtConfig.reissUri()
+        );
+    }
 }
