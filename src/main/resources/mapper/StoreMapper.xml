@@ -5,6 +5,24 @@
 
 <mapper namespace="com.deliveryinsider.domain.store.mapper.StoreMapper">
 
+    <resultMap id="storeResultMap" type="com.deliveryinsider.domain.store.entities.Store">
+        <id column="id" property="id" />
+        <result column="user_id" property="userId" />
+        <result column="store_name" property="storeName" />
+        <result column="business_number" property="businessNumber" />
+        <result column="business_status" property="businessStatus" />
+        <result column="business_verified_at" property="businessVerifiedAt" />
+        <result column="address" property="address" />
+        <result column="address_detail" property="addressDetail" />
+        <result column="industry_type" property="industryType" />
+        <result column="kitchen_capacity" property="kitchenCapacity" />
+        <result column="open_time" property="openTime" />
+        <result column="close_time" property="closeTime" />
+        <result column="created_at" property="createdAt" />
+        <result column="updated_at" property="updatedAt" />
+        <result column="deleted_at" property="deletedAt" />
+    </resultMap>
+
     <!-- 회원이 이미 활성 매장을 등록했는지 확인 -->
     <select id="countByUserId" resultType="int">
         SELECT COUNT(*)
@@ -58,24 +76,11 @@
 
     <!-- 매장 PK 조회 -->
     <select id="findById"
+            resultMap="storeResultMap"
             resultType="com.deliveryinsider.domain.store.entities.Store">
 
         SELECT
-        id,
-        user_id,
-        store_name,
-        business_number,
-        business_status,
-        business_verified_at,
-        address,
-        address_detail,
-        industry_type,
-        kitchen_capacity,
-        open_time,
-        close_time,
-        created_at,
-        updated_at,
-        deleted_at
+            *
         FROM stores
         WHERE id = #{id}
         AND deleted_at IS NULL

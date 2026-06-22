@@ -23,13 +23,19 @@ public class Store {
     private Long userId;
 
     private String storeName;
-    private String businessNumber;
-    private BusinessStatus businessStatus;
-    private LocalDateTime businessVerifiedAt;
+    private String phone;
 
     private String address;
     private String addressDetail;
+
     private String industryType;
+    private String businessNumber;
+    private BusinessStatus businessStatus;
+
+    private LocalDateTime businessVerifiedAt;
+
+
+
 
     // 동시에 처리 가능한 주문 수
     private Integer kitchenCapacity;
