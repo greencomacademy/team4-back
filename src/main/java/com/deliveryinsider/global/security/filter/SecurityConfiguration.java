@@ -30,6 +30,9 @@ public class SecurityConfiguration {
                         .requestMatchers("/api/auth/register").permitAll()
                         .requestMatchers("/api/auth/login").permitAll()
                         .requestMatchers("/api/auth/reissue-token").permitAll()
+                        .requestMatchers("/api/store/**").authenticated()
+                        // .requestMatchers("/api/store/**").permitAll() // <-- 이렇게 되어있다면 인증 객체가 null이 됩니다.
+
 
                         // main 단계에서는 개발 편의를 위해 일단 전체 허용
                         .anyRequest().permitAll()
