@@ -59,7 +59,8 @@ public class SecurityConfiguration {
                     "/api/test",
                     "/api/auth/register",
                     "/api/auth/login",
-                    "/api/auth/reissue-token"
+                    "/api/auth/reissue-token",
+                    "/api/auth/logout"
                 ).permitAll()
 
                 // 위 주소를 제외한 API는 로그인 필요
