@@ -1,37 +1,42 @@
 package com.deliveryinsider.global.security.cookie;
 
-import java.util.Arrays;
-import java.util.Optional;
-
 import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
-
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.ResponseCookie;
 import org.springframework.stereotype.Component;
+
+import java.util.Arrays;
+import java.util.Optional;
 
 @Component
 public class CookieManager {
-    // 쿠키 생성 및 응답에 저장
-    public void setCookie(
-            HttpServletResponse response,
-            String name,
-            String value,
-            int maxAge,
-            String path
-    ) {
-        Cookie cookie = new Cookie(name, value);
-        cookie.setHttpOnly(true);
-        cookie.setSecure(false);
-        cookie.setPath(path);
-        cookie.setMaxAge(maxAge);
 
-        response.addCookie(cookie);
+    public void setCookie(
+        HttpServletResponse response,
+        String name,
+        String value,
+        int maxAge,
+        String path
+    ) {
+        ResponseCookie cookie = ResponseCookie.from(name, value)
+            .httpOnly(true)
+            .secure(false)      // 로컬 개발은 http라 false
+            .sameSite("Lax")    // localhost 개발에서는 Lax가 무난
+            .path(path)
+            .maxAge(maxAge)
+            .build();
+
+        response.addHeader(
+            HttpHeaders.SET_COOKIE,
+            cookie.toString()
+        );
     }
 
-    // 요청에서 쿠키 조회
     public Optional<Cookie> getCookie(
-            HttpServletRequest request,
-            String name
+        HttpServletRequest request,
+        String name
     ) {
         Cookie[] cookies = request.getCookies();
 
@@ -40,22 +45,26 @@ public class CookieManager {
         }
 
         return Arrays.stream(cookies)
-                .filter(cookie -> cookie.getName().equals(name))
-                .findFirst();
+            .filter(cookie -> cookie.getName().equals(name))
+            .findFirst();
     }
 
     public void deleteCookie(
-            HttpServletResponse response,
-            String name,
-            String path
+        HttpServletResponse response,
+        String name,
+        String path
     ) {
-        Cookie cookie = new Cookie(name, null);
-        cookie.setHttpOnly(true);
-        cookie.setSecure(false);
-        cookie.setPath(path);
-        cookie.setMaxAge(0);
+        ResponseCookie cookie = ResponseCookie.from(name, "")
+            .httpOnly(true)
+            .secure(false)
+            .sameSite("Lax")
+            .path(path)
+            .maxAge(0)
+            .build();
 
-        response.addCookie(cookie);
+        response.addHeader(
+            HttpHeaders.SET_COOKIE,
+            cookie.toString()
+        );
     }
-
 }
