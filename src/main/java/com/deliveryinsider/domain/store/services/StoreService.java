@@ -3,6 +3,7 @@ package com.deliveryinsider.domain.store.services;
 
 import com.deliveryinsider.domain.store.entities.Store;
 import com.deliveryinsider.domain.store.enums.BusinessStatus;
+import com.deliveryinsider.domain.store.enums.OperationStatus;
 import com.deliveryinsider.domain.store.mappers.StoreMapper;
 import com.deliveryinsider.domain.store.requests.StoreCreateReq;
 import com.deliveryinsider.domain.store.requests.StoreUpdateReq;
@@ -10,6 +11,7 @@ import com.deliveryinsider.domain.store.responses.StoreRes;
 import com.deliveryinsider.global.errors.custom.DeletedRecordException;
 import com.deliveryinsider.global.errors.custom.DuplicatedRecordException;
 import com.deliveryinsider.global.errors.custom.NotRegisteredException;
+import com.deliveryinsider.global.errors.custom.NotRegisteredStoreException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -56,12 +58,17 @@ public class StoreService {
         Store store = Store.builder()
                 .userId(userId)
                 .storeName(storeCreateReq.storeName())
+                .phone(storeCreateReq.phone())
                 .businessNumber(storeCreateReq.businessNumber())
                 .businessStatus(BusinessStatus.PENDING)
                 .businessVerifiedAt(null)
                 .address(storeCreateReq.address())
                 .addressDetail(storeCreateReq.addressDetail())
                 .industryType(storeCreateReq.industryType())
+                .operationStatus(
+                    storeCreateReq.operationStatus() == null
+                    ? OperationStatus.OPERATING
+                    : storeCreateReq.operationStatus())
                 .kitchenCapacity(storeCreateReq.kitchenCapacity())
                 .openTime(storeCreateReq.openTime())
                 .closeTime(storeCreateReq.closeTime())
@@ -98,7 +105,7 @@ public class StoreService {
         Store store = storeMapper.findByUserId(userId);
 
         if (store == null) {
-            throw new NotRegisteredException(
+            throw new NotRegisteredStoreException(
                     "등록된 매장이 없습니다."
             );
         }
@@ -113,6 +120,7 @@ public class StoreService {
         return StoreRes.builder()
                 .id(store.getId())
                 .storeName(store.getStoreName())
+                .phone(store.getPhone())
                 .businessNumber(store.getBusinessNumber())
                 .businessStatus(store.getBusinessStatus())
                 .businessVerifiedAt(store.getBusinessVerifiedAt())
@@ -122,6 +130,7 @@ public class StoreService {
                 .kitchenCapacity(store.getKitchenCapacity())
                 .openTime(store.getOpenTime())
                 .closeTime(store.getCloseTime())
+                .operationStatus(store.getOperationStatus())
                 .createdAt(store.getCreatedAt())
                 .updatedAt(store.getUpdatedAt())
                 .build();
@@ -135,7 +144,7 @@ public class StoreService {
         Store currentStore = storeMapper.findByUserId(userId);
 
         if (currentStore == null) {
-            throw new NotRegisteredException(
+            throw new NotRegisteredStoreException(
                     "수정할 매장이 없습니다."
             );
         }
@@ -182,6 +191,11 @@ public class StoreService {
                 currentStore.getAddress(),
                 storeUpdateReq.address()
         );
+        
+        String changedPhone = getChangedValue(
+            currentStore.getPhone(),
+            storeUpdateReq.phone()
+        );
 
         String changedAddressDetail = getChangedValue(
                 currentStore.getAddressDetail(),
@@ -206,17 +220,23 @@ public class StoreService {
                 currentStore.getCloseTime(),
                 storeUpdateReq.closeTime()
         );
+        OperationStatus changedOperationStatus = getChangedValue(
+            currentStore.getOperationStatus(),
+            storeUpdateReq.operationStatus()
+        );
 
         // 4. 실제 변경된 값이 하나도 없다면 UPDATE하지 않고 현재 정보 반환
         boolean hasChangedValue =
                 changedStoreName != null
+                        || changedPhone != null
                         || changedBusinessNumber != null
                         || changedAddress != null
                         || changedAddressDetail != null
                         || changedIndustryType != null
                         || changedKitchenCapacity != null
                         || changedOpenTime != null
-                        || changedCloseTime != null;
+                        || changedCloseTime != null
+                        || changedOperationStatus != null;
 
         if (!hasChangedValue) {
             return toStoreRes(currentStore);
@@ -233,6 +253,7 @@ public class StoreService {
          */
         Store updateStore = Store.builder()
                 .id(currentStore.getId())
+                .phone(changedPhone)
                 .userId(userId)
                 .storeName(changedStoreName)
                 .businessNumber(changedBusinessNumber)
@@ -242,6 +263,7 @@ public class StoreService {
                 .kitchenCapacity(changedKitchenCapacity)
                 .openTime(changedOpenTime)
                 .closeTime(changedCloseTime)
+                .operationStatus(changedOperationStatus)
                 .build();
 
         // 6. DB 수정

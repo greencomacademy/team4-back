@@ -10,8 +10,10 @@
         <result column="user_id" property="userId" />
         <result column="store_name" property="storeName" />
         <result column="business_number" property="businessNumber" />
+        <result column="phone" property="phone" />
         <result column="business_status" property="businessStatus" />
         <result column="business_verified_at" property="businessVerifiedAt" />
+        <result column="operation_status" property="operationStatus" />
         <result column="address" property="address" />
         <result column="address_detail" property="addressDetail" />
         <result column="industry_type" property="industryType" />
@@ -48,22 +50,27 @@
         INSERT INTO stores (
         user_id,
         store_name,
+        phone,
         business_number,
         business_status,
         business_verified_at,
+        operation_status,
         address,
         address_detail,
         industry_type,
         kitchen_capacity,
         open_time,
         close_time
+        
         )
         VALUES (
         #{userId},
         #{storeName},
+        #{phone},
         #{businessNumber},
         #{businessStatus},
         #{businessVerifiedAt},
+        #{operationStatus},
         #{address},
         #{addressDetail},
         #{industryType},
@@ -95,9 +102,11 @@
         id,
         user_id,
         store_name,
+        phone,
         business_number,
         business_status,
         business_verified_at,
+        operation_status,
         address,
         address_detail,
         industry_type,
@@ -135,13 +144,17 @@
             <if test="storeName != null">
                 store_name = #{storeName},
             </if>
-
+            <if test="phone != null">
+                phone = #{phone},
+            </if>
             <if test="businessNumber != null">
                 business_number = #{businessNumber},
                 business_status = 'PENDING',
                 business_verified_at = NULL,
             </if>
-
+            <if test="operationStatus != null">
+                operation_status = #{operationStatus},
+            </if>
             <if test="address != null">
                 address = #{address},
             </if>
