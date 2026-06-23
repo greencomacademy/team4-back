@@ -32,6 +32,16 @@ public class GlobalExceptionHandler {
                 .build()
         );
     }
+    @ExceptionHandler(NotRegisteredStoreException.class)
+    public ResponseEntity<GlobalRes<String>> notRegisteredStoreException(NotRegisteredStoreException e){
+        return ResponseEntity.status(404).body(
+            GlobalRes.<String>builder()
+                .code("E31")
+                .message("매장 등록 문제")
+                .data(e.getMessage())
+                .build()
+        );
+    }
     @ExceptionHandler(AuthenticationException.class)
     public ResponseEntity<GlobalRes<String>> authenticationHandle(AuthenticationException e){
         return ResponseEntity.status(401).body(

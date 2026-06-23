@@ -1,6 +1,7 @@
 package com.deliveryinsider.domain.store.entities;
 
 import com.deliveryinsider.domain.store.enums.BusinessStatus;
+import com.deliveryinsider.domain.store.enums.OperationStatus;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
@@ -33,6 +34,8 @@ public class Store {
     private BusinessStatus businessStatus;
 
     private LocalDateTime businessVerifiedAt;
+    
+    private OperationStatus operationStatus;
 
 
 
