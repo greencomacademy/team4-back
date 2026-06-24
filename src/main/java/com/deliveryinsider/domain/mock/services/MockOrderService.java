@@ -7,9 +7,11 @@ import com.deliveryinsider.domain.mock.responses.MockOrderCreateResponse;
 import com.deliveryinsider.domain.mock.responses.MockOrderDeleteResponse;
 import com.deliveryinsider.domain.order.entities.Order;
 import com.deliveryinsider.domain.order.entities.OrderItem;
+import com.deliveryinsider.domain.order.entities.OrderRequest;
 import com.deliveryinsider.domain.order.enums.MockOrderScenario;
 import com.deliveryinsider.domain.order.mapper.OrderItemMapper;
 import com.deliveryinsider.domain.order.mapper.OrderMapper;
+import com.deliveryinsider.domain.order.mapper.OrderRequestMapper;
 import com.deliveryinsider.domain.platform.entities.PlatformSetting;
 import com.deliveryinsider.domain.platform.mapper.PlatformMapper;
 import com.deliveryinsider.domain.store.entities.Store;
@@ -36,6 +38,7 @@ public class MockOrderService {
     private final PlatformMapper platformSettingMapper;
     private final OrderMapper orderMapper;
     private final OrderItemMapper orderItemMapper;
+    private final OrderRequestMapper orderRequestMapper;
 
     /**
      * Mock 주문 여러 건 생성
@@ -194,6 +197,12 @@ public class MockOrderService {
         Order order = Order.builder()
                 .storeId(store.getId())
                 .orderNo(generateOrderNo())
+                .platformOrderNumber(
+                generatePlatformOrderNumber(
+                    platformSetting.getPlatformType()
+                     )
+                )
+                .deliveryAddress(generateDeliveryAddress())
                 .platformType(
                         platformSetting.getPlatformType()
                 )
@@ -242,10 +251,110 @@ public class MockOrderService {
                     "Mock 주문 상세 저장 중 문제가 발생했습니다."
             );
         }
+    // 3. 주문 요구사항 저장
+    OrderRequest orderRequest =
+        createOrderRequest(actualScenario, order.getId());
+
+    int requestResult =
+        orderRequestMapper.save(orderRequest);
+
+    if (requestResult != 1) {
+            throw new RuntimeException(
+                "Mock 주문 요구사항 저장 중 문제가 발생했습니다."
+            );
+        }
 
         return order;
     }
+    /**
+     * Mock 시나리오에 맞는 고객 요구사항 생성
+     */
+    private OrderRequest createOrderRequest(
+        MockOrderScenario scenario,
+        Long orderId
+    ) {
+        return switch (scenario) {
+            case NORMAL, MIXED -> OrderRequest.builder()
+                .orderId(orderId)
+                .requestText("수저는 1개만 넣어주세요.")
+                .riskType("NORMAL")
+                .riskLevel("SAFE")
+                .detectedKeywords("")
+                .analysisMessage("일반 요청사항입니다.")
+                .build();
 
+            case GROUP -> OrderRequest.builder()
+                .orderId(orderId)
+                .requestText("회사 회의용입니다. 시간 맞춰서 부탁드립니다.")
+                .riskType("DELIVERY")
+                .riskLevel("CAUTION")
+                .detectedKeywords("시간,회의")
+                .analysisMessage("단체 주문입니다. 조리시간과 포장 수량을 확인해 주세요.")
+                .build();
+
+            case PREMIUM -> OrderRequest.builder()
+                .orderId(orderId)
+                .requestText("소스는 따로 담아주시고 포장 꼼꼼히 부탁드립니다.")
+                .riskType("DELIVERY")
+                .riskLevel("SAFE")
+                .detectedKeywords("소스,포장")
+                .analysisMessage("포장 요청사항을 확인해 주세요.")
+                .build();
+
+            case DELAY_TEST -> OrderRequest.builder()
+                .orderId(orderId)
+                .requestText("늦으면 취소할게요. 최대한 빨리 부탁드립니다.")
+                .riskType("DISPUTE")
+                .riskLevel("WARNING")
+                .detectedKeywords("늦으면,취소")
+                .analysisMessage("지연 시 분쟁 가능성이 있는 요청입니다.")
+                .build();
+        };
+    }
+
+    /**
+     * Mock 플랫폼 주문번호 생성
+     * 예: B-MOCK-20260624-A1B2C3D4
+     */
+    private String generatePlatformOrderNumber(
+        com.deliveryinsider.global.enums.PlatformType platformType
+    ) {
+        String prefix = switch (platformType) {
+            case BAEMIN -> "B";
+            case COUPANG_EATS -> "C";
+            case YOGIYO -> "Y";
+            case DDANGYO -> "D";
+        };
+
+        String date =
+            LocalDate.now().format(
+                DateTimeFormatter.BASIC_ISO_DATE
+            );
+
+        String randomText =
+            UUID.randomUUID()
+                .toString()
+                .substring(0, 8)
+                .toUpperCase();
+
+        return prefix + "-MOCK-" + date + "-" + randomText;
+    }
+
+    /**
+     * Mock 배달주소 생성
+     */
+    private String generateDeliveryAddress() {
+        List<String> addresses = List.of(
+            "대구광역시 동구 동대구로 101",
+            "대구광역시 수성구 달구벌대로 2400",
+            "대구광역시 중구 중앙대로 88",
+            "대구광역시 북구 침산로 33",
+            "대구광역시 남구 중앙대로 210"
+        );
+
+        return randomElement(addresses);
+    }
+    
     /**
      * 주문 상세 스냅샷과 항목별 계산값 생성
      */
@@ -439,7 +548,6 @@ public class MockOrderService {
 
     /**
      * 지연 테스트 주문
-     *
      * 생성 상태는 WAITING이지만,
      * 조리시간이 긴 메뉴와 많은 수량을 선택한다.
      * 이후 COOKING으로 변경하면 지연 테스트에 사용 가능하다.
@@ -521,7 +629,7 @@ public class MockOrderService {
 
     /**
      * 주문번호 생성
-     * 예: ORD-20260616-A1B2C3D4
+     * 예: ORD-MOCK-20260616-A1B2C3D4
      */
     private String generateOrderNo() {
         String date =
@@ -535,7 +643,7 @@ public class MockOrderService {
                         .substring(0, 8)
                         .toUpperCase();
 
-        return "ORD-" + date + "-" + randomText;
+        return "ORD-MOCK-" + date + "-" + randomText;
     }
 
     /**
@@ -596,7 +704,7 @@ public class MockOrderService {
 
         // 2. 해당 매장에 속한 주문 전체 삭제
         int deletedOrderCount =
-                orderMapper.deleteAllByStoreId(
+                orderMapper.deleteMockOrdersStoreId(
                         store.getId()
                 );
 

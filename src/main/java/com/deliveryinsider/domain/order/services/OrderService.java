@@ -154,6 +154,14 @@ public class OrderService {
             .cookingStartedAt(
                 order.getCookingStartedAt()
             )
+            .requestText(order.getRequestText())
+            .requestRiskType(order.getRequestRiskType())
+            .requestRiskLevel(order.getRequestRiskLevel())
+            .requestAnalysisMessage(order.getRequestAnalysisMessage())
+            
+            .cancelType(order.getCancelType())
+            .cancelReason(order.getCancelReason())
+            .canceledAt(order.getCanceledAt())
             .build();
     }
 

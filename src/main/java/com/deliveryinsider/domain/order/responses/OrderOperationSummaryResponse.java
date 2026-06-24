@@ -4,66 +4,54 @@ import com.deliveryinsider.global.enums.KitchenLoadLevel;
 import lombok.Builder;
 
 /**
- * 주문 운영 화면 상단에 표시할 현재 주문 처리 요약 응답 DTO
- *
- * 완료·취소·환불된 과거 주문이 아니라,
- * 현재 처리 중인 주문과 주방 상태를 중심으로 반환한다.
+ * 실시간 운영 대시보드 상단 요약 응답 DTO
  */
 @Builder
 public record OrderOperationSummaryResponse(
 
-    /*
-     * 현재 처리 중인 전체 주문 수
-     *
-     * WAITING + COOKING + DELIVERING
-     */
+    // 오늘 전체 주문 수
+    Long todayOrderCount,
+
+    // 현재 처리 중 주문 수: WAITING + COOKING + DELIVERING
     Long progressOrderCount,
 
-    /*
-     * 현재 접수대기 상태인 주문 수
-     */
     Long waitingCount,
-
-    /*
-     * 현재 조리중 상태인 주문 수
-     */
     Long cookingCount,
-
-    /*
-     * 현재 배달중 상태인 주문 수
-     */
     Long deliveringCount,
 
-    /*
-     * 현재 COOKING 주문 중
-     * WARNING 또는 DELAYED 상태인 주문 수
-     */
+    // 오늘 완료/취소 주문 수
+    Long completedCount,
+    Long canceledCount,
+
+    // 오늘 완료 주문 기준 매출/순수익
+    Long todaySales,
+    Long todayNetProfit,
+
+    // 오늘 취소율
+    Double cancelRate,
+
+    // 지연 위험 주문 수
     Long delayRiskCount,
 
-    /*
-     * 현재 진행 중인 주문들의 예상 순수익 합계
-     *
-     * WAITING + COOKING + DELIVERING 주문의
-     * orders.net_profit 합계
-     */
+    // 요구사항 확인 필요 주문 수
+    Long requestRiskCount,
+
+    // 예상 순수익이 0 이하인 주문 수
+    Long lossRiskCount,
+
+    // 현재 진행 주문 예상 순수익 합계
     Long expectedProgressNetProfit,
 
-    /*
-     * 매장에 설정된 동시 조리 가능 주문 수
-     */
+    // 매장 주방 처리량
     Integer kitchenCapacity,
 
-    /*
-     * 현재 COOKING 주문 수와 kitchenCapacity를
-     * 비교해 계산한 주방 부하 단계
-     *
-     * LOW, NORMAL, HIGH, OVERLOAD
-     */
+    // 부하율
+    Integer loadRate,
+
+    // 부하 단계
     KitchenLoadLevel kitchenLoadLevel,
 
-    /*
-     * 점주에게 보여줄 현재 운영 안내 문구
-     */
+    // 점주 안내 문구
     String message
 
 ) {

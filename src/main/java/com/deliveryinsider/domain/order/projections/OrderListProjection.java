@@ -35,4 +35,15 @@ public class OrderListProjection {
     private LocalDateTime orderedAt;
     private String deliveryAddress;
     private LocalDateTime cookingStartedAt;
+    
+    // 고객 요구사항 요약
+    private String requestText;
+    private String requestRiskType;
+    private String requestRiskLevel;
+    private String requestAnalysisMessage;
+
+    // 취소 이력 요약
+    private String cancelType;
+    private String cancelReason;
+    private LocalDateTime canceledAt;
 }

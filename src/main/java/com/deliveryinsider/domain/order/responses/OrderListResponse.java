@@ -1,8 +1,6 @@
 package com.deliveryinsider.domain.order.responses;
 
-
 import com.deliveryinsider.global.enums.OrderStatus;
-
 import com.deliveryinsider.global.enums.PlatformType;
 import lombok.Builder;
 
@@ -27,7 +25,16 @@ public record OrderListResponse(
     String deliveryAddress,
 
     LocalDateTime orderedAt,
-    LocalDateTime cookingStartedAt
+    LocalDateTime cookingStartedAt,
+
+    String requestText,
+    String requestRiskType,
+    String requestRiskLevel,
+    String requestAnalysisMessage,
+
+    String cancelType,
+    String cancelReason,
+    LocalDateTime canceledAt
 
 ) {
 }

@@ -59,6 +59,11 @@ public class OrderOperationSummaryService {
          * COUNT와 COALESCE를 사용하므로 정상 SQL 결과는 0이지만,
          * 비정상 매핑이나 테스트 Mock의 null 값도 방어한다.
          */
+        long todayOrderCount =
+            getSafeLong(
+                projection.getTodayOrderCount()
+            );
+
         long progressOrderCount =
             getSafeLong(
                 projection.getProgressOrderCount()
@@ -79,9 +84,39 @@ public class OrderOperationSummaryService {
                 projection.getDeliveringCount()
             );
 
+        long completedCount =
+            getSafeLong(
+                projection.getCompletedCount()
+            );
+
+        long canceledCount =
+            getSafeLong(
+                projection.getCanceledCount()
+            );
+
+        long todaySales =
+            getSafeLong(
+                projection.getTodaySales()
+            );
+
+        long todayNetProfit =
+            getSafeLong(
+                projection.getTodayNetProfit()
+            );
+
         long expectedProgressNetProfit =
             getSafeLong(
                 projection.getExpectedProgressNetProfit()
+            );
+
+        long requestRiskCount =
+            getSafeLong(
+                projection.getRequestRiskCount()
+            );
+
+        long lossRiskCount =
+            getSafeLong(
+                projection.getLossRiskCount()
             );
 
         // 4. 현재 COOKING 주문들의 지연 위험 계산 결과 조회
@@ -98,32 +133,52 @@ public class OrderOperationSummaryService {
                         == DelayRiskLevel.DELAYED
                 )
                 .count();
+        Double cancelRate =
+            calculateCancelRate(
+                todayOrderCount,
+                canceledCount
+            );
 
-        // 6. COOKING 주문 수를 기준으로 현재 주방 부하 단계 계산
-        KitchenLoadLevel kitchenLoadLevel =
-            determineKitchenLoadLevel(
+        Integer loadRate =
+            calculateLoadRate(
+                waitingCount,
                 cookingCount,
+                deliveringCount,
                 kitchenCapacity
             );
+        // 6. COOKING 주문 수를 기준으로 현재 주방 부하 단계 계산
+        KitchenLoadLevel kitchenLoadLevel =
+            determineKitchenLoadLevel(loadRate);
 
         // 7. 현재 운영 상태에 맞는 점주 안내 문구 생성
         String message = createMessage(
             kitchenLoadLevel,
             delayRiskCount,
+            requestRiskCount,
+            lossRiskCount,
             waitingCount
         );
 
         // 8. 최종 주문 운영 요약 응답 생성
         return OrderOperationSummaryResponse.builder()
+            .todayOrderCount(todayOrderCount)
             .progressOrderCount(progressOrderCount)
             .waitingCount(waitingCount)
             .cookingCount(cookingCount)
             .deliveringCount(deliveringCount)
+            .completedCount(completedCount)
+            .canceledCount(canceledCount)
+            .todaySales(todaySales)
+            .todayNetProfit(todayNetProfit)
+            .cancelRate(cancelRate)
             .delayRiskCount(delayRiskCount)
+            .requestRiskCount(requestRiskCount)
+            .lossRiskCount(lossRiskCount)
             .expectedProgressNetProfit(
                 expectedProgressNetProfit
             )
             .kitchenCapacity(kitchenCapacity)
+            .loadRate(loadRate)
             .kitchenLoadLevel(kitchenLoadLevel)
             .message(message)
             .build();
@@ -164,43 +219,95 @@ public class OrderOperationSummaryService {
     }
 
     /**
-     * 현재 COOKING 주문 수를 기준으로 주방 부하 단계를 계산한다.
+     * 부하율을 기준으로 주방 부하 단계를 계산한다.
      */
     private KitchenLoadLevel determineKitchenLoadLevel(
-        long cookingCount,
-        int kitchenCapacity
+        int loadRate
     ) {
-        if (cookingCount == 0) {
+        if (loadRate == 0) {
             return KitchenLoadLevel.LOW;
         }
 
-        if (cookingCount <= kitchenCapacity) {
+        if (loadRate <= 100) {
             return KitchenLoadLevel.NORMAL;
         }
 
-        if (
-            cookingCount
-                <= (long) kitchenCapacity * 2
-        ) {
+        if (loadRate <= 200) {
             return KitchenLoadLevel.HIGH;
         }
 
         return KitchenLoadLevel.OVERLOAD;
     }
+    /**
+     * 취소율 계산
+     */
+    private Double calculateCancelRate(
+        long todayOrderCount,
+        long canceledCount
+    ) {
+        if (todayOrderCount == 0) {
+            return 0.0;
+        }
+
+        double rawRate =
+            ((double) canceledCount / todayOrderCount) * 100;
+
+        return Math.round(rawRate * 10) / 10.0;
+    }
+    /**
+     * 현재 운영 부하율 계산
+     *
+     * WAITING은 곧 조리로 들어올 주문이라 0.5
+     * COOKING은 실제 주방을 쓰고 있으므로 1.0
+     * DELIVERING은 주방 부담이 거의 끝난 상태라 0.3으로 반영한다.
+     */
+    private Integer calculateLoadRate(
+        long waitingCount,
+        long cookingCount,
+        long deliveringCount,
+        int kitchenCapacity
+    ) {
+        double workload =
+            waitingCount * 0.5
+                + cookingCount
+                ;
+
+        int loadRate =
+            (int) Math.ceil(
+                (workload / kitchenCapacity) * 100
+            );
+
+        return Math.min(loadRate, 220);
+    }
 
     /**
      * 현재 주방 부하와 지연 위험 건수를 바탕으로
      * 점주에게 보여줄 운영 안내 문구를 만든다.
+     * 현재 운영 상태에 맞는 점주 안내 문구를 만든다.
      */
     private String createMessage(
         KitchenLoadLevel kitchenLoadLevel,
         long delayRiskCount,
+        long requestRiskCount,
+        long lossRiskCount,
         long waitingCount
     ) {
         if (delayRiskCount > 0) {
             return "지연 위험 주문이 "
                 + delayRiskCount
                 + "건 있습니다. 조리중 주문을 우선 확인해 주세요.";
+        }
+
+        if (requestRiskCount > 0) {
+            return "요구사항 확인이 필요한 주문이 "
+                + requestRiskCount
+                + "건 있습니다. 알러지·분쟁 가능 요청을 먼저 확인해 주세요.";
+        }
+
+        if (lossRiskCount > 0) {
+            return "예상 순수익이 낮은 주문이 "
+                + lossRiskCount
+                + "건 있습니다. 쿠폰·배달비 부담을 확인해 주세요.";
         }
 
         return switch (kitchenLoadLevel) {
