@@ -25,6 +25,9 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.util.List;
 
 @Service
@@ -36,6 +39,11 @@ public class OrderService {
     private final StoreMapper storeMapper;
     private final OrderCancellationMapper orderCancellationMapper;
     private final OrderRequestMapper orderRequestMapper;
+    private record BusinessDayRange(
+        LocalDateTime startAt,
+        LocalDateTime endAt
+    ) {
+    }
 
     /**
      * 내 활성 매장의 주문 목록 조회
@@ -60,6 +68,42 @@ public class OrderService {
             );
 
         // 3. 조회 결과를 프론트 응답 DTO로 변환
+        return orders.stream()
+            .map(this::toOrderListRes)
+            .toList();
+    }
+    /**
+     * 오늘 주문 목록 조회
+     * 통합 주문 관리 화면 전용 API에서 사용한다.
+     * 기존 /api/orders는 전체 주문 조회로 유지하고,
+     * 이 메서드는 오늘 들어온 주문만 조회한다.
+     */
+    /**
+     * 오늘 주문 목록 조회
+     *
+     * 통합 주문 관리 화면 전용 API에서 사용한다.
+     * "오늘"의 기준은 달력 날짜가 아니라 매장의 영업시간 기준이다.
+     */
+    @Transactional(readOnly = true)
+    public List<OrderListResponse> findToday(
+        Long userId,
+        PlatformType platformType,
+        OrderStatus orderStatus
+    ) {
+        Store store = getActiveStore(userId);
+
+        BusinessDayRange businessDayRange =
+            calculateBusinessDayRange(store);
+
+        List<OrderListProjection> orders =
+            orderMapper.findTodayByStoreId(
+                store.getId(),
+                platformType,
+                orderStatus,
+                businessDayRange.startAt(),
+                businessDayRange.endAt()
+            );
+
         return orders.stream()
             .map(this::toOrderListRes)
             .toList();
@@ -495,6 +539,55 @@ public class OrderService {
                 "주문 취소 사유 저장에 실패했습니다."
             );
         }
+    }
+    /**
+     * 매장 영업시간 기준 현재 영업일 범위를 계산한다.
+     *
+     * 예시 1)
+     * openTime 09:00, closeTime 22:00
+     * → 오늘 09:00 ~ 오늘 22:00
+     *
+     * 예시 2)
+     * openTime 18:00, closeTime 03:00
+     * → 현재 시간이 02:00이면 어제 18:00 ~ 오늘 03:00
+     * → 현재 시간이 19:00이면 오늘 18:00 ~ 내일 03:00
+     */
+    private BusinessDayRange calculateBusinessDayRange(
+        Store store
+    ) {
+        LocalTime openTime = store.getOpenTime();
+        LocalTime closeTime = store.getCloseTime();
+
+        if (openTime == null || closeTime == null) {
+            throw new BadRequestException(
+                "매장 영업시간이 설정되어 있지 않습니다."
+            );
+        }
+
+        LocalDate today = LocalDate.now();
+        LocalTime nowTime = LocalTime.now();
+
+        boolean isOvernightBusiness =
+            !closeTime.isAfter(openTime);
+
+        if (!isOvernightBusiness) {
+            return new BusinessDayRange(
+                LocalDateTime.of(today, openTime),
+                LocalDateTime.of(today, closeTime)
+            );
+        }
+
+        if (nowTime.isBefore(closeTime)) {
+            return new BusinessDayRange(
+                LocalDateTime.of(today.minusDays(1), openTime),
+                LocalDateTime.of(today, closeTime)
+            );
+        }
+
+        return new BusinessDayRange(
+            LocalDateTime.of(today, openTime),
+            LocalDateTime.of(today.plusDays(1), closeTime)
+        );
     }
     
 }

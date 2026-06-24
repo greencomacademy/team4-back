@@ -187,12 +187,7 @@ public class StoreService {
                 currentStore.getStoreName(),
                 storeUpdateReq.storeName()
         );
-
-        String changePhone = getChangedValue(
-                currentStore.getPhone(),
-                storeUpdateReq.phone()
-        );
-
+        
         String changedAddress = getChangedValue(
                 currentStore.getAddress(),
                 storeUpdateReq.address()
@@ -268,7 +263,6 @@ public class StoreService {
                 .phone(changedPhone)
                 .userId(userId)
                 .storeName(changedStoreName)
-                .phone(changePhone)
                 .businessNumber(changedBusinessNumber)
                 .businessStatus(changeBusinessStatus)
                 .address(changedAddress)

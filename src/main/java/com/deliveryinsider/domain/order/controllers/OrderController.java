@@ -108,7 +108,39 @@ public class OrderController {
                 .build()
         );
     }
-    
+    /**
+     * 오늘 주문 목록 조회
+     * GET /api/orders/today
+     */
+    /**
+     * 오늘 주문 목록 조회
+     * GET /api/orders/today
+     *
+     * 오늘의 기준은 매장의 openTime / closeTime 기준 영업일이다.
+     */
+    @GetMapping("/today")
+    public ResponseEntity<GlobalRes<List<OrderListResponse>>> findToday(
+        Authentication authentication,
+        @RequestParam(required = false) PlatformType platformType,
+        @RequestParam(required = false) OrderStatus orderStatus
+    ) {
+        Long userId = extractUserId(authentication);
+
+        List<OrderListResponse> result =
+            orderService.findToday(
+                userId,
+                platformType,
+                orderStatus
+            );
+
+        return ResponseEntity.ok(
+            GlobalRes.<List<OrderListResponse>>builder()
+                .code("00")
+                .message("오늘 영업일 주문 목록 조회 성공")
+                .data(result)
+                .build()
+        );
+    }
     
     
 

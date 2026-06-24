@@ -28,6 +28,7 @@ import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.concurrent.ThreadLocalRandom;
+import java.util.Comparator;
 
 @Service
 @RequiredArgsConstructor
@@ -42,7 +43,6 @@ public class MockOrderService {
 
     /**
      * Mock 주문 여러 건 생성
-     *
      * 한 건이라도 생성에 실패하면 전체 주문을 롤백한다.
      */
     @Transactional(rollbackFor = Exception.class)
@@ -86,14 +86,21 @@ public class MockOrderService {
         }
 
         // 4. 요청받은 개수만큼 주문 생성
+        // 4. 요청받은 시나리오에 맞게 실제 생성할 시나리오 목록 생성
+        List<MockOrderScenario> creationScenarios =
+            createScenarioPlan(
+                scenario,
+                requestedCount
+            );
+
         List<Order> createdOrders = new ArrayList<>();
 
-        for (int i = 0; i < requestedCount; i++) {
+        for (MockOrderScenario creationScenario : creationScenarios) {
             Order createdOrder = createOneOrder(
-                    store,
-                    menus,
-                    platformSettings,
-                    scenario
+                store,
+                menus,
+                platformSettings,
+                creationScenario
             );
 
             createdOrders.add(createdOrder);
@@ -101,7 +108,7 @@ public class MockOrderService {
 
         // 5. 생성 결과 응답
         return MockOrderCreateResponse.builder()
-                .requestedCount(requestedCount)
+                .requestedCount(creationScenarios.size())
                 .createdCount(createdOrders.size())
                 .scenario(scenario)
                 .orderIds(
@@ -116,7 +123,34 @@ public class MockOrderService {
                 )
                 .build();
     }
+    /**
+     * 요청받은 Mock 시나리오를 실제 생성할 시나리오 목록으로 변환한다.
+     * PEAK_SET은 발표용 세트이므로
+     * NORMAL / REQUEST_RISK / ALLERGY / DELAY_TEST / LOSS를
+     * 각각 1건씩 생성한다.
+     */
+    private List<MockOrderScenario> createScenarioPlan(
+        MockOrderScenario scenario,
+        int requestedCount
+    ) {
+        if (scenario == MockOrderScenario.PEAK_SET) {
+            return List.of(
+                MockOrderScenario.NORMAL,
+                MockOrderScenario.REQUEST_RISK,
+                MockOrderScenario.ALLERGY,
+                MockOrderScenario.DELAY_TEST,
+                MockOrderScenario.LOSS
+            );
+        }
 
+        List<MockOrderScenario> scenarios = new ArrayList<>();
+
+        for (int i = 0; i < requestedCount; i++) {
+            scenarios.add(scenario);
+        }
+
+        return scenarios;
+    }
     /**
      * Mock 주문 한 건 생성
      */
@@ -188,6 +222,28 @@ public class MockOrderService {
                         - totalMenuCost
                         - totalPackagingFee
                         + platformSupportAmount;
+        /*
+         * LOSS 시나리오는 프론트/대시보드에서 손실 위험을 확인하기 위한 주문이다.
+         * 실제 메뉴·플랫폼 조합만으로 손실이 나지 않을 수도 있으므로,
+         * Mock 주문에서는 쿠폰 부담금을 추가해 netProfit이 0 이하가 되도록 보정한다.
+         */
+        if (actualScenario == MockOrderScenario.LOSS
+            && netProfit > 0) {
+
+            int additionalCouponCost =
+                netProfit + randomInt(500, 2000);
+
+            couponCost += additionalCouponCost;
+
+            netProfit =
+                totalAmount
+                    - commissionAmount
+                    - couponCost
+                    - deliveryFee
+                    - totalMenuCost
+                    - totalPackagingFee
+                    + platformSupportAmount;
+        }
 
         /*
          * 일반 Mock 주문은 항상 WAITING으로 생성한다.
@@ -274,13 +330,31 @@ public class MockOrderService {
         Long orderId
     ) {
         return switch (scenario) {
-            case NORMAL, MIXED -> OrderRequest.builder()
+            case NORMAL, MIXED, PEAK_SET -> OrderRequest.builder()
                 .orderId(orderId)
                 .requestText("수저는 1개만 넣어주세요.")
                 .riskType("NORMAL")
                 .riskLevel("SAFE")
                 .detectedKeywords("")
                 .analysisMessage("일반 요청사항입니다.")
+                .build();
+
+            case REQUEST_RISK -> OrderRequest.builder()
+                .orderId(orderId)
+                .requestText("늦으면 취소할게요. 서비스 많이 주세요.")
+                .riskType("DISPUTE")
+                .riskLevel("WARNING")
+                .detectedKeywords("늦으면,취소,서비스 많이")
+                .analysisMessage("분쟁 가능성과 과도 요청이 포함된 주문입니다. 접수 전 제공 가능 범위를 확인해 주세요.")
+                .build();
+
+            case ALLERGY -> OrderRequest.builder()
+                .orderId(orderId)
+                .requestText("땅콩 알러지가 있습니다. 견과류는 절대 빼주세요.")
+                .riskType("ALLERGY")
+                .riskLevel("DANGER")
+                .detectedKeywords("땅콩,알러지,견과류")
+                .analysisMessage("알러지 관련 요청입니다. 조리 전 재료와 제외 요청을 반드시 확인해 주세요.")
                 .build();
 
             case GROUP -> OrderRequest.builder()
@@ -303,11 +377,20 @@ public class MockOrderService {
 
             case DELAY_TEST -> OrderRequest.builder()
                 .orderId(orderId)
-                .requestText("늦으면 취소할게요. 최대한 빨리 부탁드립니다.")
-                .riskType("DISPUTE")
-                .riskLevel("WARNING")
-                .detectedKeywords("늦으면,취소")
-                .analysisMessage("지연 시 분쟁 가능성이 있는 요청입니다.")
+                .requestText("회사 회의용입니다. 시간 맞춰서 부탁드립니다.")
+                .riskType("DELIVERY")
+                .riskLevel("CAUTION")
+                .detectedKeywords("시간,회의")
+                .analysisMessage("지연 테스트 주문입니다. 조리중으로 변경한 뒤 지연 위험 계산을 확인해 주세요.")
+                .build();
+
+            case LOSS -> OrderRequest.builder()
+                .orderId(orderId)
+                .requestText("리뷰 쓸테니 소스랑 사이드 서비스 많이 주세요.")
+                .riskType("EXCESSIVE")
+                .riskLevel("CAUTION")
+                .detectedKeywords("리뷰,서비스 많이,소스,사이드")
+                .analysisMessage("과도 요청과 손실 위험이 있는 주문입니다. 제공 기준과 예상 순수익을 확인해 주세요.")
                 .build();
         };
     }
@@ -410,25 +493,31 @@ public class MockOrderService {
      * Mock 시나리오에 맞게 메뉴와 수량 선택
      */
     private List<MenuQuantity> selectMenus(
-            List<Menu> menus,
-            MockOrderScenario scenario
+        List<Menu> menus,
+        MockOrderScenario scenario
     ) {
         return switch (scenario) {
-            case NORMAL ->
-                    selectNormalMenus(menus);
+            case NORMAL,
+                 REQUEST_RISK,
+                 ALLERGY ->
+                selectNormalMenus(menus);
 
             case GROUP ->
-                    selectGroupMenus(menus);
+                selectGroupMenus(menus);
 
             case PREMIUM ->
-                    selectPremiumMenus(menus);
+                selectPremiumMenus(menus);
 
             case DELAY_TEST ->
-                    selectDelayTestMenus(menus);
+                selectDelayTestMenus(menus);
 
-            case MIXED ->
-                // createOneOrder에서 실제 시나리오로 변환하므로 예비 처리
-                    selectNormalMenus(menus);
+            case LOSS ->
+                selectLossMenus(menus);
+
+            case MIXED,
+                 PEAK_SET ->
+                // createScenarioPlan 또는 resolveActualScenario에서 실제 시나리오로 변환되므로 예비 처리
+                selectNormalMenus(menus);
         };
     }
 
@@ -456,7 +545,36 @@ public class MockOrderService {
                 )
                 .toList();
     }
+   
+    /**
+     * 손실 위험 주문
+     * 원가나 포장비가 높은 메뉴를 우선 선택한다.
+     * 이후 createOneOrder에서 쿠폰 부담금을 보정해
+     * netProfit이 0 이하가 되도록 만든다.
+     */
+    private List<MenuQuantity> selectLossMenus(
+        List<Menu> menus
+    ) {
+        Menu lossMenu = menus.stream()
+            .max(
+                Comparator.<Menu>comparingInt(
+                    menu ->
+                        menu.getMenuCost()
+                            + menu.getPackagingFee()
+                ).thenComparingInt(
+                    Menu::getExpectedCookingTime
+                )
+            )
+            .orElseThrow();
 
+        return List.of(
+            new MenuQuantity(
+                lossMenu,
+                randomInt(1, 3)
+            )
+        );
+    }
+    
     /**
      * 단체 주문
      * 최소 한 메뉴를 6개 이상 주문
@@ -575,7 +693,7 @@ public class MockOrderService {
      * MIXED 요청을 실제 주문별 시나리오로 변환
      */
     private MockOrderScenario resolveActualScenario(
-            MockOrderScenario requestedScenario
+        MockOrderScenario requestedScenario
     ) {
         if (requestedScenario != MockOrderScenario.MIXED) {
             return requestedScenario;
@@ -583,11 +701,19 @@ public class MockOrderService {
 
         int randomValue = randomInt(1, 100);
 
-        if (randomValue <= 55) {
+        if (randomValue <= 40) {
             return MockOrderScenario.NORMAL;
         }
 
-        if (randomValue <= 75) {
+        if (randomValue <= 55) {
+            return MockOrderScenario.REQUEST_RISK;
+        }
+
+        if (randomValue <= 68) {
+            return MockOrderScenario.ALLERGY;
+        }
+
+        if (randomValue <= 80) {
             return MockOrderScenario.GROUP;
         }
 
@@ -595,7 +721,11 @@ public class MockOrderService {
             return MockOrderScenario.PREMIUM;
         }
 
-        return MockOrderScenario.DELAY_TEST;
+        if (randomValue <= 96) {
+            return MockOrderScenario.DELAY_TEST;
+        }
+
+        return MockOrderScenario.LOSS;
     }
 
     /**

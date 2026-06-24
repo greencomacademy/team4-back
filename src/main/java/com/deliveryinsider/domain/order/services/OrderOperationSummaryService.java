@@ -8,11 +8,15 @@ import com.deliveryinsider.domain.order.responses.CookingDelayResponse;
 import com.deliveryinsider.domain.order.responses.OrderOperationSummaryResponse;
 import com.deliveryinsider.domain.store.entities.Store;
 import com.deliveryinsider.domain.store.mappers.StoreMapper;
+import com.deliveryinsider.global.errors.custom.BadRequestException;
 import com.deliveryinsider.global.errors.custom.DeletedRecordException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.util.List;
 
 @Service
@@ -22,6 +26,11 @@ public class OrderOperationSummaryService {
     private final StoreMapper storeMapper;
     private final OrderMapper orderMapper;
     private final DelayRiskService delayRiskService;
+    private record BusinessDayRange(
+        LocalDateTime startAt,
+        LocalDateTime endAt
+    ) {
+    }
 
     /**
      * 로그인 사용자의 현재 주문 운영 상태를 요약한다.
@@ -42,9 +51,14 @@ public class OrderOperationSummaryService {
             );
 
         // 3. 진행 주문의 상태별 개수와 예상 순수익 조회
+        BusinessDayRange businessDayRange =
+            calculateBusinessDayRange(store);
+
         OrderOperationSummaryProjection projection =
             orderMapper.findOperationSummary(
-                store.getId()
+                store.getId(),
+                businessDayRange.startAt(),
+                businessDayRange.endAt()
             );
 
         if (projection == null) {
@@ -183,6 +197,53 @@ public class OrderOperationSummaryService {
             .message(message)
             .build();
     }
+    /**
+     * 매장 영업시간 기준 현재 영업일 범위를 계산한다.
+     * 예시 1)
+     * openTime 09:00, closeTime 22:00
+     * → 오늘 09:00 ~ 오늘 22:00
+     * 예시 2)
+     * openTime 18:00, closeTime 03:00
+     * → 현재 시간이 02:00이면 어제 18:00 ~ 오늘 03:00
+     * → 현재 시간이 19:00이면 오늘 18:00 ~ 내일 03:00
+     */
+    private BusinessDayRange calculateBusinessDayRange(
+        Store store
+    ) {
+        LocalTime openTime = store.getOpenTime();
+        LocalTime closeTime = store.getCloseTime();
+
+        if (openTime == null || closeTime == null) {
+            throw new BadRequestException(
+                "매장 영업시간이 설정되어 있지 않습니다."
+            );
+        }
+
+        LocalDate today = LocalDate.now();
+        LocalTime nowTime = LocalTime.now();
+
+        boolean isOvernightBusiness =
+            !closeTime.isAfter(openTime);
+
+        if (!isOvernightBusiness) {
+            return new BusinessDayRange(
+                LocalDateTime.of(today, openTime),
+                LocalDateTime.of(today, closeTime)
+            );
+        }
+
+        if (nowTime.isBefore(closeTime)) {
+            return new BusinessDayRange(
+                LocalDateTime.of(today.minusDays(1), openTime),
+                LocalDateTime.of(today, closeTime)
+            );
+        }
+
+        return new BusinessDayRange(
+            LocalDateTime.of(today, openTime),
+            LocalDateTime.of(today.plusDays(1), closeTime)
+        );
+    }
 
     /**
      * 로그인 사용자의 활성 매장을 조회한다.
@@ -256,7 +317,6 @@ public class OrderOperationSummaryService {
     }
     /**
      * 현재 운영 부하율 계산
-     *
      * WAITING은 곧 조리로 들어올 주문이라 0.5
      * COOKING은 실제 주방을 쓰고 있으므로 1.0
      * DELIVERING은 주방 부담이 거의 끝난 상태라 0.3으로 반영한다.

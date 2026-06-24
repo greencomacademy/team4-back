@@ -362,6 +362,88 @@
         o.id DESC
 
     </select>
+    <select id="findTodayByStoreId"
+            resultMap="orderListProjectionResultMap">
+
+        SELECT
+        o.id,
+        o.order_no,
+        o.platform_order_number,
+        o.platform_type,
+        o.order_status,
+        o.total_amount,
+        o.net_profit,
+        o.total_cooking_time,
+        o.delivery_address,
+        o.ordered_at,
+        o.cooking_started_at,
+        o.canceled_at,
+
+        order_request.request_text AS request_text,
+        order_request.risk_type AS request_risk_type,
+        order_request.risk_level AS request_risk_level,
+        order_request.analysis_message AS request_analysis_message,
+
+        order_cancellation.cancel_type AS cancel_type,
+        order_cancellation.cancel_reason AS cancel_reason,
+
+        COALESCE(item_summary.total_quantity, 0)
+        AS total_quantity,
+
+        CASE
+        WHEN COALESCE(item_summary.item_count, 0) = 0
+        THEN '-'
+
+        WHEN item_summary.item_count = 1
+        THEN first_item.ordered_menu_name
+
+        ELSE CONCAT(
+        first_item.ordered_menu_name,
+        ' 외 ',
+        item_summary.item_count - 1,
+        '개'
+        )
+        END AS menu_summary
+
+        FROM orders o
+
+        LEFT JOIN (
+        SELECT
+        order_id,
+        SUM(quantity) AS total_quantity,
+        COUNT(*) AS item_count,
+        MIN(id) AS first_item_id
+        FROM order_items
+        GROUP BY order_id
+        ) item_summary
+        ON item_summary.order_id = o.id
+
+        LEFT JOIN order_items first_item
+        ON first_item.id = item_summary.first_item_id
+
+        LEFT JOIN order_requests order_request
+        ON order_request.order_id = o.id
+
+        LEFT JOIN order_cancellations order_cancellation
+        ON order_cancellation.order_id = o.id
+
+        WHERE o.store_id = #{storeId}
+        AND o.deleted_at IS NULL
+        AND o.ordered_at >= #{businessStartAt}
+        AND o.ordered_at &lt; #{businessEndAt}
+
+        <if test="platformType != null">
+            AND o.platform_type = #{platformType}
+        </if>
+
+        <if test="orderStatus != null">
+            AND o.order_status = #{orderStatus}
+        </if>
+
+        ORDER BY o.ordered_at DESC,
+        o.id DESC
+
+    </select>
     <!--
     현재 처리 중인 주문의 상태별 개수와
     예상 순수익 합계를 한 번에 조회한다.
@@ -483,7 +565,7 @@
 
         COUNT(
         CASE
-        WHEN o.order_status NOT IN (
+        WHEN o.order_status IN (
             'WAITING',
             'COOKING',
             'DELIVERING'
@@ -500,7 +582,8 @@
 
         WHERE o.store_id = #{storeId}
         AND o.deleted_at IS NULL
-        AND DATE(o.ordered_at) = CURDATE()
+          AND o.ordered_at >= #{businessStartAt}
+          AND o.ordered_at &lt; #{businessEndAt}
 
     </select>
 
