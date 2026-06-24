@@ -1,0 +1,159 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper
+    PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+    "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.deliveryinsider.domain.platform.mapper.PlatformMapper">
+
+    <resultMap id="platformSettingResultMap"
+               type="com.deliveryinsider.domain.platform.entities.PlatformSetting">
+
+        <id property="id"
+            column="id"/>
+
+        <result property="storeId"
+                column="store_id"/>
+
+        <result property="platformType"
+                column="platform_type"/>
+
+        <result property="commissionRate"
+                column="commission_rate"/>
+
+        <result property="deliveryFee"
+                column="delivery_fee"/>
+
+        <result property="couponCost"
+                column="coupon_cost"/>
+
+        <result property="platformSupportAmount"
+                column="platform_support_amount"/>
+
+        <result property="createdAt"
+                column="created_at"/>
+
+        <result property="updatedAt"
+                column="updated_at"/>
+
+        <result property="deletedAt"
+                column="deleted_at"/>
+
+    </resultMap>
+
+    <!-- 매장 생성 시 플랫폼 기본 설정 4개 저장 -->
+    <insert id="saveAll">
+
+        INSERT INTO platform_settings (
+        store_id,
+        platform_type,
+        commission_rate,
+        delivery_fee,
+        coupon_cost,
+        platform_support_amount
+        )
+        VALUES
+        <foreach collection="settings"
+                 item="setting"
+                 separator=",">
+            (
+            #{setting.storeId},
+            #{setting.platformType},
+            #{setting.commissionRate},
+            #{setting.deliveryFee},
+            #{setting.couponCost},
+            #{setting.platformSupportAmount}
+            )
+        </foreach>
+
+    </insert>
+
+    <!-- 내 매장의 플랫폼 설정 전체 조회 -->
+    <select id="findAllByStoreId"
+            resultMap="platformSettingResultMap">
+
+        SELECT
+            id,
+            store_id,
+            platform_type,
+            commission_rate,
+            delivery_fee,
+            coupon_cost,
+            platform_support_amount,
+            created_at,
+            updated_at,
+            deleted_at
+
+        FROM platform_settings
+
+        WHERE store_id = #{storeId}
+          AND deleted_at IS NULL
+
+        ORDER BY
+            CASE platform_type
+                WHEN 'BAEMIN' THEN 1
+                WHEN 'COUPANG_EATS' THEN 2
+                WHEN 'YOGIYO' THEN 3
+                WHEN 'DDANGYO' THEN 4
+                ELSE 99
+                END
+
+    </select>
+
+    <!-- 특정 플랫폼 설정 조회 -->
+    <select id="findByStoreIdAndPlatformType"
+            resultMap="platformSettingResultMap">
+
+        SELECT
+            id,
+            store_id,
+            platform_type,
+            commission_rate,
+            delivery_fee,
+            coupon_cost,
+            platform_support_amount,
+            created_at,
+            updated_at,
+            deleted_at
+
+        FROM platform_settings
+
+        WHERE store_id = #{storeId}
+          AND platform_type = #{platformType}
+          AND deleted_at IS NULL
+
+    </select>
+
+    <!-- 특정 플랫폼 설정 부분 수정 -->
+    <update id="update"
+            parameterType="com.deliveryinsider.domain.platform.entities.PlatformSetting">
+
+        UPDATE platform_settings
+
+        <set>
+            <if test="commissionRate != null">
+                commission_rate = #{commissionRate},
+            </if>
+
+            <if test="deliveryFee != null">
+                delivery_fee = #{deliveryFee},
+            </if>
+
+            <if test="couponCost != null">
+                coupon_cost = #{couponCost},
+            </if>
+
+            <if test="platformSupportAmount != null">
+                platform_support_amount = #{platformSupportAmount},
+            </if>
+
+            updated_at = NOW()
+        </set>
+
+        WHERE id = #{id}
+        AND store_id = #{storeId}
+        AND platform_type = #{platformType}
+        AND deleted_at IS NULL
+
+    </update>
+
+</mapper>
