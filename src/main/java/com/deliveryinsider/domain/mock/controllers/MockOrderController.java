@@ -2,9 +2,11 @@ package com.deliveryinsider.domain.mock.controllers;
 
 import com.deliveryinsider.domain.mock.requests.MockOrderCreateRequest;
 import com.deliveryinsider.domain.mock.responses.MockOrderCreateResponse;
+import com.deliveryinsider.domain.mock.responses.MockOrderDeleteResponse;
 import com.deliveryinsider.domain.mock.services.MockOrderService;
 import com.deliveryinsider.global.responses.GlobalRes;
 import io.jsonwebtoken.Claims;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
@@ -14,42 +16,22 @@ import org.springframework.web.bind.annotation.*;
 @RequestMapping("/api/mock-data/orders")
 @RequiredArgsConstructor
 public class MockOrderController {
+
     private final MockOrderService mockOrderService;
-
+    // TODO: Mock 대량 주문의 totalCookingTime이 과도하게 커지는 문제를 실제 주방의 병렬 조리 방식을 고려하여 현실적으로 조정한다.
     /**
-     * 기본 데이터 생성
-     * POST /api/mock-data/basic
-     */
-    @PostMapping("/basic")
-    public ResponseEntity<GlobalRes<Void>> createBasicData(
-            Authentication authentication
-    ) {
-
-        Long userId = extractUserId(authentication);
-
-        mockOrderService.createBasicData(userId);
-
-        return ResponseEntity.ok(
-                GlobalRes.<Void>builder()
-                        .code("00")
-                        .message("기본 데이터 생성 성공")
-                        .build()
-        );
-    }
-
-    /**
-     * 일반 Mock 주문 생성
+     * Mock 주문 생성
+     * POST /api/orders/mock
      */
     @PostMapping
-    public ResponseEntity<GlobalRes<MockOrderCreateResponse>> create(
-            @RequestBody MockOrderCreateRequest request,
-            Authentication authentication
+    public ResponseEntity<GlobalRes<MockOrderCreateResponse>> createMockOrders(
+            Authentication authentication,
+            @Valid @RequestBody MockOrderCreateRequest createReq
     ) {
-
         Long userId = extractUserId(authentication);
 
         MockOrderCreateResponse result =
-                mockOrderService.createMockOrders(userId, request);
+                mockOrderService.create(userId, createReq);
 
         return ResponseEntity.ok(
                 GlobalRes.<MockOrderCreateResponse>builder()
@@ -59,61 +41,39 @@ public class MockOrderController {
                         .build()
         );
     }
-
     /**
-     * 발표용 GROUP Mock 주문
-     * TODO 구현 예정
-     */
-    @PostMapping("/group")
-    public ResponseEntity<Void> createGroup() {
-        return ResponseEntity.ok().build();
-    }
-
-    /**
-     * 발표용 PREMIUM Mock 주문
-     * TODO 구현 예정
-     */
-    @PostMapping("/premium")
-    public ResponseEntity<Void> createPremium() {
-        return ResponseEntity.ok().build();
-    }
-
-    /**
-     * DELAY_TEST Mock 주문
-     * TODO 구현 예정
-     */
-    @PostMapping("/delay-test")
-    public ResponseEntity<Void> createDelayTest() {
-        return ResponseEntity.ok().build();
-    }
-
-    /**
-     * Mock 주문 삭제
+     * 로그인 사용자의 매장에 속한 Mock 주문 전체 삭제
+     *
+     * DELETE /api/mock-data/orders
      */
     @DeleteMapping
-    public ResponseEntity<GlobalRes<Void>> delete(
+    public ResponseEntity<GlobalRes<MockOrderDeleteResponse>> deleteAll(
             Authentication authentication
     ) {
-
         Long userId = extractUserId(authentication);
 
-        mockOrderService.deleteMockOrders(userId);
+        MockOrderDeleteResponse result =
+                mockOrderService.deleteAll(userId);
 
         return ResponseEntity.ok(
-                GlobalRes.<Void>builder()
+                GlobalRes.<MockOrderDeleteResponse>builder()
                         .code("00")
-                        .message("Mock 주문 삭제 성공")
+                        .message("Mock 주문 삭제 완료")
+                        .data(result)
                         .build()
         );
     }
 
+
     /**
-     * JWT에서 userId 추출
+     * JWT subject에서 로그인 회원 PK 추출
      */
-    private Long extractUserId(Authentication authentication) {
-        Claims claims = (Claims) authentication.getPrincipal();
+    private Long extractUserId(
+            Authentication authentication
+    ) {
+        Claims claims =
+                (Claims) authentication.getPrincipal();
+
         return Long.valueOf(claims.getSubject());
     }
-
-
 }
