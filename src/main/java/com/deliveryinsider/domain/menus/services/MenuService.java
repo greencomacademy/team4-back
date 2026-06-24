@@ -391,7 +391,6 @@ public class MenuService {
 
     /**
      * 조리 부담 점수 계산
-     *
      * 예상 조리시간 / 한 번에 조리 가능한 수량
      */
     private BigDecimal calculateCookingBurdenScore(
