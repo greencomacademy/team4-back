@@ -248,7 +248,7 @@ public class StoreService {
                         || changedKitchenCapacity != null
                         || changedOpenTime != null
                         || changedCloseTime != null
-                        || changeBusinessStatus != null;
+                        || changeBusinessStatus != null
                         || changedOperationStatus != null;
 
         if (!hasChangedValue) {
