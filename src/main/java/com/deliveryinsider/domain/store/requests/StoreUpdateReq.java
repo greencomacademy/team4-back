@@ -20,9 +20,6 @@ public record StoreUpdateReq(
         @Size(max = 20, message = "가게번호는 20자 이하 여야 합니다.")
         String phone,
 
-        @Size(max = 20, message = "가게번호는 20자 이하 여야 합니다.")
-        String phone,
-
         @Size(max = 20, message = "가게 상태는 최대 20글자 입니다.")
         String businessStatus,
 
@@ -84,7 +81,7 @@ public record StoreUpdateReq(
                 || kitchenCapacity != null
                 || openTime != null
                 || closeTime != null
-                || businessStatus != null;
+                || businessStatus != null
                 || operationStatus != null ;
 
     }
