@@ -1,5 +1,6 @@
 package com.deliveryinsider.domain.store.requests;
 
+import com.deliveryinsider.domain.store.enums.OperationStatus;
 import jakarta.validation.constraints.*;
 
 import java.time.LocalTime;
@@ -45,8 +46,10 @@ public record StoreCreateReq(
         LocalTime openTime,
 
         @NotNull(message = "영업 종료 시간은 필수입니다.")
-        LocalTime closeTime
-
+        LocalTime closeTime,
+        
+        @NotNull(message = "운영 상태는 필수입니다.")
+        OperationStatus operationStatus
 
 ) {
 }
