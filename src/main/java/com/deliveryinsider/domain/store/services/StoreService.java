@@ -1,6 +1,7 @@
 package com.deliveryinsider.domain.store.services;
 
 
+import com.deliveryinsider.domain.platform.services.PlatformService;
 import com.deliveryinsider.domain.store.entities.Store;
 import com.deliveryinsider.domain.store.enums.BusinessStatus;
 import com.deliveryinsider.domain.store.enums.OperationStatus;
@@ -23,7 +24,7 @@ import java.util.Objects;
 @RequiredArgsConstructor
 public class StoreService {
     private final StoreMapper storeMapper;
-//    private final PlatformSettingService platformSettingService;
+    private final PlatformService platformSettingService;
 
     /**
      * 매장 등록
@@ -84,7 +85,7 @@ public class StoreService {
             );
         }
         // 새로 생성된 store.id를 이용해 플랫폼 기본 설정 4개 생성
-//        platformSettingService.createDefaults(store.getId());
+        platformSettingService.createDefaults(store.getId());
 
         // useGeneratedKeys로 생성된 PK가 store.id에 들어감
         Store savedStore = storeMapper.findById(store.getId());

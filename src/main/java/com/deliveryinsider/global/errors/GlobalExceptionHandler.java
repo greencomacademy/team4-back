@@ -9,13 +9,16 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.validation.FieldError;
+import org.springframework.validation.ObjectError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 import java.sql.SQLException;
 import java.util.Arrays;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.stream.Collectors;
 
@@ -93,18 +96,29 @@ public class GlobalExceptionHandler {
                 .build()
         );
     }
-    
-    
+
+
     @ExceptionHandler(MethodArgumentNotValidException.class)
-    public ResponseEntity<GlobalRes<Map<String, String>>> methodArgumentNotValidHandle(MethodArgumentNotValidException e) {
-        Map<String, String> errors = e.getBindingResult()
-            .getFieldErrors()
-            .stream()
-            .collect(Collectors.toMap(
-                FieldError::getField, // 필드명
-                fieldError -> fieldError.getDefaultMessage() != null ? fieldError.getDefaultMessage() : "유효하지 않은 값입니다.",
-                (existing, replacement) -> existing // 중복 필드가 있을 경우 기존 값 유지
-            ));
+    public ResponseEntity<GlobalRes<Map<String, String>>> methodArgumentNotValidHandle(
+        MethodArgumentNotValidException e
+    ) {
+        Map<String, String> errors = new LinkedHashMap<>();
+
+        for (FieldError fieldError : e.getBindingResult().getFieldErrors()) {
+            String message = fieldError.getDefaultMessage() != null
+                ? fieldError.getDefaultMessage()
+                : "유효하지 않은 값입니다.";
+
+            errors.putIfAbsent(fieldError.getField(), message);
+        }
+
+        for (ObjectError globalError : e.getBindingResult().getGlobalErrors()) {
+            String message = globalError.getDefaultMessage() != null
+                ? globalError.getDefaultMessage()
+                : "요청 조건이 올바르지 않습니다.";
+
+            errors.putIfAbsent("request", message);
+        }
 
         return ResponseEntity.status(400).body(
             GlobalRes.<Map<String, String>>builder()
@@ -124,6 +138,80 @@ public class GlobalExceptionHandler {
                 .build()
         );
     }
+    @ExceptionHandler(BadRequestException.class)
+    public ResponseEntity<GlobalRes<String>> badRequestHandle(BadRequestException e) {
+        return ResponseEntity.status(400).body(
+            GlobalRes.<String>builder()
+                .code("E22")
+                .message("잘못된 요청입니다.")
+                .data(e.getMessage())
+                .build()
+        );
+    }
+
+    @ExceptionHandler(InvalidOrderStatusException.class)
+    public ResponseEntity<GlobalRes<String>> invalidOrderStatusHandle(
+        InvalidOrderStatusException e
+    ) {
+        return ResponseEntity.status(400).body(
+            GlobalRes.<String>builder()
+                .code("E23")
+                .message("주문 상태 변경 오류")
+                .data(e.getMessage())
+                .build()
+        );
+    }
+
+    @ExceptionHandler(NotFoundException.class)
+    public ResponseEntity<GlobalRes<String>> notFoundHandle(NotFoundException e) {
+        return ResponseEntity.status(404).body(
+            GlobalRes.<String>builder()
+                .code("E30")
+                .message("데이터를 찾을 수 없습니다.")
+                .data(e.getMessage())
+                .build()
+        );
+    }
+
+    @ExceptionHandler(ForbiddenException.class)
+    public ResponseEntity<GlobalRes<String>> forbiddenHandle(ForbiddenException e) {
+        return ResponseEntity.status(403).body(
+            GlobalRes.<String>builder()
+                .code("E03")
+                .message("UNAUTHORIZED_ERROR")
+                .data(e.getMessage())
+                .build()
+        );
+    }
+
+    @ExceptionHandler(HttpMessageNotReadableException.class)
+    public ResponseEntity<GlobalRes<String>> httpMessageNotReadableHandle(
+        HttpMessageNotReadableException e
+    ) {
+        return ResponseEntity.status(400).body(
+            GlobalRes.<String>builder()
+                .code("E20")
+                .message("요청 본문 형식 오류")
+                .data("JSON 형식과 각 필드의 값을 확인해 주세요.")
+                .build()
+        );
+    }
+
+        @ExceptionHandler(NoResourceFoundException.class)
+    public ResponseEntity<GlobalRes<String>> noResourceFoundHandle(
+        NoResourceFoundException e
+    ) {
+        return ResponseEntity.status(404).body(
+            GlobalRes.<String>builder()
+                .code("E30")
+                .message("요청한 API를 찾을 수 없습니다.")
+                .data(e.getResourcePath())
+                .build()
+        );
+    }
+    
+    
+    
     @ExceptionHandler(FileManagedException.class)
     public ResponseEntity<GlobalRes<String>> fileManagedExceptionHandle(FileManagedException e){
         log.error(

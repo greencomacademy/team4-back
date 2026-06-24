@@ -13,6 +13,10 @@ import com.deliveryinsider.global.enums.PlatformType;
 import com.deliveryinsider.domain.store.entities.Store;
 import com.deliveryinsider.domain.store.mappers.StoreMapper;
 import com.deliveryinsider.global.enums.OrderStatus;
+import com.deliveryinsider.domain.order.entities.OrderCancellation;
+import com.deliveryinsider.domain.order.enums.OrderCanceledByType;
+import com.deliveryinsider.domain.order.mapper.OrderCancellationMapper;
+import org.springframework.util.StringUtils;
 
 import com.deliveryinsider.global.errors.custom.BadRequestException;
 import com.deliveryinsider.global.errors.custom.DeletedRecordException;
@@ -29,6 +33,7 @@ public class OrderService {
     private final OrderMapper orderMapper;
     private final OrderItemMapper orderItemMapper;
     private final StoreMapper storeMapper;
+    private final OrderCancellationMapper orderCancellationMapper;
 
     /**
      * 내 활성 매장의 주문 목록 조회
@@ -118,6 +123,7 @@ public class OrderService {
         return OrderListResponse.builder()
             .id(order.getId())
             .orderNo(order.getOrderNo())
+            .platformOrderNumber(order.getPlatformOrderNumber())
             .platformType(order.getPlatformType())
             .orderStatus(order.getOrderStatus())
             .totalAmount(order.getTotalAmount())
@@ -125,6 +131,7 @@ public class OrderService {
             .totalCookingTime(
                 order.getTotalCookingTime()
             )
+            .deliveryAddress(order.getDeliveryAddress())
             .totalQuantity(order.getTotalQuantity())
             .menuSummary(order.getMenuSummary())
             .orderedAt(order.getOrderedAt())
@@ -261,6 +268,10 @@ public class OrderService {
         OrderStatus nextStatus =
             updateReq.orderStatus();
 
+
+        // 3. CANCELED 요청이면 취소 유형과 취소 사유를 검증
+        validateCancellationRequest(nextStatus, updateReq);
+
         // 3. 허용된 상태 전환인지 검사
         if (!isAllowedTransition(currentStatus, nextStatus)) {
             throw new BadRequestException(
@@ -290,8 +301,17 @@ public class OrderService {
                 "주문 상태가 이미 변경되었습니다. 새로고침 후 다시 시도해 주세요."
             );
         }
-
-        // 5. 변경된 주문 재조회
+        // 5. 취소 상태로 변경한 경우 취소 이력 저장
+        if (nextStatus == OrderStatus.CANCELED) {
+            saveOrderCancellation(
+                userId,
+                orderId,
+                currentStatus,
+                updateReq
+            );
+        }
+        
+        // 6. 변경된 주문 재조회
         Order updatedOrder =
             orderMapper.findByIdAndStoreId(
                 orderId,
@@ -304,11 +324,11 @@ public class OrderService {
             );
         }
 
-        // 6. 주문 상세 항목 조회
+        // 7. 주문 상세 항목 조회
         List<OrderItem> orderItems =
             orderItemMapper.findAllByOrderId(orderId);
 
-        // 7. 변경된 주문 상세 반환
+        // 8. 변경된 주문 상세 반환
         return toOrderDetailRes(
             updatedOrder,
             orderItems
@@ -340,6 +360,55 @@ public class OrderService {
                 false;
         };
     }
-    
+    /**
+     * 취소 요청일 때만 취소 유형과 취소 사유를 검사한다.
+     */
+    private void validateCancellationRequest(
+        OrderStatus nextStatus,
+        OrderStatusUpdateRequest updateReq
+    ) {
+        if (nextStatus != OrderStatus.CANCELED) {
+            return;
+        }
+
+        if (updateReq.cancelType() == null) {
+            throw new BadRequestException(
+                "주문 취소 시 취소 유형은 필수입니다."
+            );
+        }
+
+        if (!StringUtils.hasText(updateReq.cancelReason())) {
+            throw new BadRequestException(
+                "주문 취소 시 취소 사유는 필수입니다."
+            );
+        }
+    }
+    /**
+     * 주문 취소 사유를 order_cancellations 테이블에 저장한다.
+     */
+    private void saveOrderCancellation(
+        Long userId,
+        Long orderId,
+        OrderStatus previousStatus,
+        OrderStatusUpdateRequest updateReq
+    ) {
+        OrderCancellation cancellation =
+            OrderCancellation.builder()
+                .orderId(orderId)
+                .cancelType(updateReq.cancelType())
+                .cancelReason(updateReq.cancelReason().trim())
+                .previousStatus(previousStatus)
+                .canceledByType(OrderCanceledByType.OWNER)
+                .canceledByUserId(userId)
+                .build();
+
+        int result = orderCancellationMapper.save(cancellation);
+
+        if (result != 1) {
+            throw new BadRequestException(
+                "주문 취소 사유 저장에 실패했습니다."
+            );
+        }
+    }
     
 }

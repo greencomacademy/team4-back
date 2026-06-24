@@ -1,0 +1,86 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper
+    PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+    "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.deliveryinsider.domain.order.mapper.OrderCancellationMapper">
+
+    <resultMap id="orderCancellationResultMap"
+               type="com.deliveryinsider.domain.order.entities.OrderCancellation">
+
+        <id property="id"
+            column="id"/>
+
+        <result property="orderId"
+                column="order_id"/>
+
+        <result property="cancelType"
+                column="cancel_type"/>
+
+        <result property="cancelReason"
+                column="cancel_reason"/>
+
+        <result property="previousStatus"
+                column="previous_status"/>
+
+        <result property="canceledByType"
+                column="canceled_by_type"/>
+
+        <result property="canceledByUserId"
+                column="canceled_by_user_id"/>
+
+        <result property="canceledAt"
+                column="canceled_at"/>
+
+        <result property="createdAt"
+                column="created_at"/>
+
+    </resultMap>
+
+    <insert id="save"
+            parameterType="com.deliveryinsider.domain.order.entities.OrderCancellation"
+            useGeneratedKeys="true"
+            keyProperty="id">
+
+        INSERT INTO order_cancellations (
+            order_id,
+            cancel_type,
+            cancel_reason,
+            previous_status,
+            canceled_by_type,
+            canceled_by_user_id,
+            canceled_at
+        )
+        VALUES (
+                   #{orderId},
+                   #{cancelType},
+                   #{cancelReason},
+                   #{previousStatus},
+                   #{canceledByType},
+                   #{canceledByUserId},
+                   NOW()
+               )
+
+    </insert>
+
+    <select id="findByOrderId"
+            resultMap="orderCancellationResultMap">
+
+        SELECT
+            id,
+            order_id,
+            cancel_type,
+            cancel_reason,
+            previous_status,
+            canceled_by_type,
+            canceled_by_user_id,
+            canceled_at,
+            created_at
+
+        FROM order_cancellations
+
+        WHERE order_id = #{orderId}
+
+    </select>
+
+</mapper>
