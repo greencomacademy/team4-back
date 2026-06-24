@@ -1,6 +1,7 @@
 package com.deliveryinsider.domain.store.services;
 
 
+import com.deliveryinsider.domain.platform.services.PlatformService;
 import com.deliveryinsider.domain.store.entities.Store;
 import com.deliveryinsider.domain.store.enums.BusinessStatus;
 import com.deliveryinsider.domain.store.enums.OperationStatus;
@@ -23,7 +24,7 @@ import java.util.Objects;
 @RequiredArgsConstructor
 public class StoreService {
     private final StoreMapper storeMapper;
-//    private final PlatformSettingService platformSettingService;
+    private final PlatformService platformSettingService;
 
     /**
      * 매장 등록
@@ -72,6 +73,7 @@ public class StoreService {
                 .kitchenCapacity(storeCreateReq.kitchenCapacity())
                 .openTime(storeCreateReq.openTime())
                 .closeTime(storeCreateReq.closeTime())
+                .phone(storeCreateReq.phone())
                 .build();
 
         // 4. DB 저장
@@ -83,7 +85,7 @@ public class StoreService {
             );
         }
         // 새로 생성된 store.id를 이용해 플랫폼 기본 설정 4개 생성
-//        platformSettingService.createDefaults(store.getId());
+        platformSettingService.createDefaults(store.getId());
 
         // useGeneratedKeys로 생성된 PK가 store.id에 들어감
         Store savedStore = storeMapper.findById(store.getId());
@@ -187,6 +189,11 @@ public class StoreService {
                 storeUpdateReq.storeName()
         );
 
+        String changePhone = getChangedValue(
+                currentStore.getPhone(),
+                storeUpdateReq.phone()
+        );
+
         String changedAddress = getChangedValue(
                 currentStore.getAddress(),
                 storeUpdateReq.address()
@@ -200,6 +207,11 @@ public class StoreService {
         String changedAddressDetail = getChangedValue(
                 currentStore.getAddressDetail(),
                 storeUpdateReq.addressDetail()
+        );
+
+        BusinessStatus changeBusinessStatus = getChangedValue(
+                currentStore.getBusinessStatus(),
+                storeUpdateReq.businessStatus() != null ? BusinessStatus.valueOf(storeUpdateReq.businessStatus()):null
         );
 
         String changedIndustryType = getChangedValue(
@@ -236,6 +248,7 @@ public class StoreService {
                         || changedKitchenCapacity != null
                         || changedOpenTime != null
                         || changedCloseTime != null
+                        || changeBusinessStatus != null
                         || changedOperationStatus != null;
 
         if (!hasChangedValue) {
@@ -256,7 +269,9 @@ public class StoreService {
                 .phone(changedPhone)
                 .userId(userId)
                 .storeName(changedStoreName)
+                .phone(changePhone)
                 .businessNumber(changedBusinessNumber)
+                .businessStatus(changeBusinessStatus)
                 .address(changedAddress)
                 .addressDetail(changedAddressDetail)
                 .industryType(changedIndustryType)

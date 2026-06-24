@@ -13,6 +13,7 @@ public record OrderListResponse(
 
     Long id,
     String orderNo,
+    String platformOrderNumber,
     PlatformType platformType,
     OrderStatus orderStatus,
 
@@ -22,6 +23,8 @@ public record OrderListResponse(
 
     Integer totalQuantity,
     String menuSummary,
+
+    String deliveryAddress,
 
     LocalDateTime orderedAt,
     LocalDateTime cookingStartedAt

@@ -23,6 +23,7 @@ public class PlatformService {
     /**
      * 신규 매장에 고정 플랫폼 4개의 기본 정산 설정 생성
      */
+    @Transactional(rollbackFor = Exception.class)
     public void createDefaults(Long storeId) {
 
         List<PlatformSetting> settings = List.of(

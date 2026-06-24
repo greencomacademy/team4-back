@@ -16,7 +16,10 @@
 
         <result property="orderNo"
                 column="order_no"/>
-
+        
+        <result property="platformOrderNumber"
+                column="platform_order_number"/>
+        
         <result property="platformType"
                 column="platform_type"/>
 
@@ -49,7 +52,10 @@
 
         <result property="totalCookingTime"
                 column="total_cooking_time"/>
-
+        
+        <result property="deliveryAddress"
+                column="delivery_address"/>
+        
         <result property="orderedAt"
                 column="ordered_at"/>
 
@@ -84,6 +90,9 @@
         <result property="orderNo"
                 column="order_no"/>
 
+        <result property="platformOrderNumber"
+                column="platform_order_number"/>
+
         <result property="platformType"
                 column="platform_type"/>
 
@@ -104,6 +113,9 @@
 
         <result property="menuSummary"
                 column="menu_summary"/>
+
+        <result property="deliveryAddress"
+                column="delivery_address"/>
 
         <result property="orderedAt"
                 column="ordered_at"/>
@@ -145,6 +157,7 @@
         INSERT INTO orders (
             store_id,
             order_no,
+            platform_order_number,
             platform_type,
             order_status,
             total_amount,
@@ -156,6 +169,7 @@
             total_packaging_fee,
             net_profit,
             total_cooking_time,
+            delivery_address,
             ordered_at,
             cooking_started_at,
             completed_at,
@@ -165,6 +179,7 @@
         VALUES (
                    #{storeId},
                    #{orderNo},
+                   #{platformOrderNumber},
                    #{platformType},
                    #{orderStatus},
                    #{totalAmount},
@@ -176,6 +191,7 @@
                    #{totalPackagingFee},
                    #{netProfit},
                    #{totalCookingTime},
+                   #{deliveryAddress},
                    #{orderedAt},
                    #{cookingStartedAt},
                    #{completedAt},
@@ -193,6 +209,7 @@
         SELECT
             id,
             store_id,
+            platform_order_number,
             order_no,
             platform_type,
             order_status,
@@ -205,6 +222,7 @@
             total_packaging_fee,
             net_profit,
             total_cooking_time,
+            delivery_address,
             ordered_at,
             cooking_started_at,
             completed_at,
@@ -228,11 +246,13 @@
         SELECT
         o.id,
         o.order_no,
+        o.platform_order_number,
         o.platform_type,
         o.order_status,
         o.total_amount,
         o.net_profit,
         o.total_cooking_time,
+        o.delivery_address,
         o.ordered_at,
         o.cooking_started_at,
 
