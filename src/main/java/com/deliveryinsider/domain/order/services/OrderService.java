@@ -2,13 +2,13 @@ package com.deliveryinsider.domain.order.services;
 
 import com.deliveryinsider.domain.order.entities.Order;
 import com.deliveryinsider.domain.order.entities.OrderItem;
+import com.deliveryinsider.domain.order.entities.OrderRequest;
 import com.deliveryinsider.domain.order.mapper.OrderItemMapper;
 import com.deliveryinsider.domain.order.mapper.OrderMapper;
+import com.deliveryinsider.domain.order.mapper.OrderRequestMapper;
 import com.deliveryinsider.domain.order.projections.OrderListProjection;
 import com.deliveryinsider.domain.order.requests.OrderStatusUpdateRequest;
-import com.deliveryinsider.domain.order.responses.OrderDetailResponse;
-import com.deliveryinsider.domain.order.responses.OrderItemResponse;
-import com.deliveryinsider.domain.order.responses.OrderListResponse;
+import com.deliveryinsider.domain.order.responses.*;
 import com.deliveryinsider.global.enums.PlatformType;
 import com.deliveryinsider.domain.store.entities.Store;
 import com.deliveryinsider.domain.store.mappers.StoreMapper;
@@ -16,6 +16,7 @@ import com.deliveryinsider.global.enums.OrderStatus;
 import com.deliveryinsider.domain.order.entities.OrderCancellation;
 import com.deliveryinsider.domain.order.enums.OrderCanceledByType;
 import com.deliveryinsider.domain.order.mapper.OrderCancellationMapper;
+import com.deliveryinsider.global.errors.custom.NotRegisteredStoreException;
 import org.springframework.util.StringUtils;
 
 import com.deliveryinsider.global.errors.custom.BadRequestException;
@@ -34,6 +35,7 @@ public class OrderService {
     private final OrderItemMapper orderItemMapper;
     private final StoreMapper storeMapper;
     private final OrderCancellationMapper orderCancellationMapper;
+    private final OrderRequestMapper orderRequestMapper;
 
     /**
      * 내 활성 매장의 주문 목록 조회
@@ -95,9 +97,23 @@ public class OrderService {
         List<OrderItem> orderItems =
             orderItemMapper.findAllByOrderId(orderId);
 
-        // 4. 주문 전체 정보와 상세 메뉴를 묶어서 응답
-        return toOrderDetailRes(order, orderItems);
+// 4. 고객 요구사항 조회
+        OrderRequest orderRequest =
+            orderRequestMapper.findByOrderId(orderId);
+
+// 5. 취소 이력 조회
+        OrderCancellation orderCancellation =
+            orderCancellationMapper.findByOrderId(orderId);
+
+// 6. 주문 전체 정보와 상세 메뉴, 요구사항, 취소사유를 묶어서 응답
+        return toOrderDetailRes(
+            order,
+            orderItems,
+            orderRequest,
+            orderCancellation
+        );
     }
+    
 
     /**
      * 로그인 사용자의 활성 매장 조회
@@ -106,7 +122,7 @@ public class OrderService {
         Store store = storeMapper.findByUserId(userId);
 
         if (store == null) {
-            throw new DeletedRecordException(
+            throw new NotRegisteredStoreException(
                 "등록된 활성 매장이 없습니다."
             );
         }
@@ -185,11 +201,13 @@ public class OrderService {
     }
 
     /**
-     * 주문 Entity와 주문 상세 목록을 상세 응답 DTO로 변환
+     * 주문 Entity와 주문 상세 목록, 요구사항, 취소사유를 상세 응답 DTO로 변환한다.
      */
     private OrderDetailResponse toOrderDetailRes(
         Order order,
-        List<OrderItem> orderItems
+        List<OrderItem> orderItems,
+        OrderRequest orderRequest,
+        OrderCancellation orderCancellation
     ) {
         List<OrderItemResponse> itemResponses =
             orderItems.stream()
@@ -199,42 +217,92 @@ public class OrderService {
         return OrderDetailResponse.builder()
             .id(order.getId())
             .orderNo(order.getOrderNo())
+            .platformOrderNumber(order.getPlatformOrderNumber())
             .platformType(order.getPlatformType())
             .orderStatus(order.getOrderStatus())
 
             .totalAmount(order.getTotalAmount())
-            .commissionAmount(
-                order.getCommissionAmount()
-            )
+            .commissionAmount(order.getCommissionAmount())
             .couponCost(order.getCouponCost())
             .deliveryFee(order.getDeliveryFee())
-            .platformSupportAmount(
-                order.getPlatformSupportAmount()
-            )
-            .totalMenuCost(
-                order.getTotalMenuCost()
-            )
-            .totalPackagingFee(
-                order.getTotalPackagingFee()
-            )
+            .platformSupportAmount(order.getPlatformSupportAmount())
+            .totalMenuCost(order.getTotalMenuCost())
+            .totalPackagingFee(order.getTotalPackagingFee())
             .netProfit(order.getNetProfit())
 
-            .totalCookingTime(
-                order.getTotalCookingTime()
-            )
+            .totalCookingTime(order.getTotalCookingTime())
+            .deliveryAddress(order.getDeliveryAddress())
 
             .orderedAt(order.getOrderedAt())
-            .cookingStartedAt(
-                order.getCookingStartedAt()
-            )
+            .cookingStartedAt(order.getCookingStartedAt())
             .completedAt(order.getCompletedAt())
             .canceledAt(order.getCanceledAt())
             .refundedAt(order.getRefundedAt())
 
             .items(itemResponses)
+            .request(toOrderRequestRes(orderRequest))
+            .cancellation(toOrderCancellationRes(orderCancellation))
 
             .createdAt(order.getCreatedAt())
             .updatedAt(order.getUpdatedAt())
+            .build();
+    }
+    /**
+     * 주문 고객 요구사항 Entity를 응답 DTO로 변환한다.
+     * 요구사항이 없는 주문이면 null을 반환한다.
+     */
+    private OrderRequestResponse toOrderRequestRes(
+        OrderRequest orderRequest
+    ) {
+        if (orderRequest == null) {
+            return null;
+        }
+
+        return OrderRequestResponse.builder()
+            .id(orderRequest.getId())
+            .requestText(orderRequest.getRequestText())
+            .riskType(orderRequest.getRiskType())
+            .riskLevel(orderRequest.getRiskLevel())
+            .detectedKeywords(orderRequest.getDetectedKeywords())
+            .analysisMessage(orderRequest.getAnalysisMessage())
+            .createdAt(orderRequest.getCreatedAt())
+            .updatedAt(orderRequest.getUpdatedAt())
+            .build();
+    }
+    /**
+     * 주문 취소 이력 Entity를 응답 DTO로 변환한다.
+     * 취소되지 않은 주문이면 null을 반환한다.
+     */
+    private OrderCancellationResponse toOrderCancellationRes(
+        OrderCancellation orderCancellation
+    ) {
+        if (orderCancellation == null) {
+            return null;
+        }
+
+        return OrderCancellationResponse.builder()
+            .id(orderCancellation.getId())
+            .cancelType(
+                orderCancellation.getCancelType()
+            )
+            .cancelReason(
+                orderCancellation.getCancelReason()
+            )
+            .previousStatus(
+                orderCancellation.getPreviousStatus()
+            )
+            .canceledByType(
+                orderCancellation.getCanceledByType()
+            )
+            .canceledByUserId(
+                orderCancellation.getCanceledByUserId()
+            )
+            .canceledAt(
+                orderCancellation.getCanceledAt()
+            )
+            .createdAt(
+                orderCancellation.getCreatedAt()
+            )
             .build();
     }
     /**
@@ -272,7 +340,7 @@ public class OrderService {
         // 3. CANCELED 요청이면 취소 유형과 취소 사유를 검증
         validateCancellationRequest(nextStatus, updateReq);
 
-        // 3. 허용된 상태 전환인지 검사
+        // 4. 허용된 상태 전환인지 검사
         if (!isAllowedTransition(currentStatus, nextStatus)) {
             throw new BadRequestException(
                 String.format(
@@ -283,7 +351,7 @@ public class OrderService {
             );
         }
 
-        // 4. 상태 변경
+        // 5. 상태 변경
         int result = orderMapper.updateStatus(
             orderId,
             store.getId(),
@@ -301,7 +369,7 @@ public class OrderService {
                 "주문 상태가 이미 변경되었습니다. 새로고침 후 다시 시도해 주세요."
             );
         }
-        // 5. 취소 상태로 변경한 경우 취소 이력 저장
+        // 6. 취소 상태로 변경한 경우 취소 이력 저장
         if (nextStatus == OrderStatus.CANCELED) {
             saveOrderCancellation(
                 userId,
@@ -311,7 +379,7 @@ public class OrderService {
             );
         }
         
-        // 6. 변경된 주문 재조회
+        // 7. 변경된 주문 재조회
         Order updatedOrder =
             orderMapper.findByIdAndStoreId(
                 orderId,
@@ -324,14 +392,24 @@ public class OrderService {
             );
         }
 
-        // 7. 주문 상세 항목 조회
+        // 8. 주문 상세 항목 조회
         List<OrderItem> orderItems =
             orderItemMapper.findAllByOrderId(orderId);
 
-        // 8. 변경된 주문 상세 반환
+        // 9. 고객 요구사항 조회
+        OrderRequest orderRequest =
+            orderRequestMapper.findByOrderId(orderId);
+
+        // 10. 취소 이력 조회
+        OrderCancellation orderCancellation =
+            orderCancellationMapper.findByOrderId(orderId);
+
+        // 11. 변경된 주문 상세 반환
         return toOrderDetailRes(
             updatedOrder,
-            orderItems
+            orderItems,
+            orderRequest,
+            orderCancellation
         );
     }
     /**

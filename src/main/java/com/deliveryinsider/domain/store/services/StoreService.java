@@ -73,7 +73,6 @@ public class StoreService {
                 .kitchenCapacity(storeCreateReq.kitchenCapacity())
                 .openTime(storeCreateReq.openTime())
                 .closeTime(storeCreateReq.closeTime())
-                .phone(storeCreateReq.phone())
                 .build();
 
         // 4. DB 저장
