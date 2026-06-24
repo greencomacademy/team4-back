@@ -13,6 +13,12 @@ public enum MockOrderScenario {
     // 고가 또는 조리시간이 긴 메뉴 위주
     PREMIUM,
 
+    // 알러지
+    ALLERGY,
+
+    // 손실
+    LOSS,
+
     /*
      * 발표 시연용 지연 테스트.
      * 일반 Mock과 달리 COOKING 상태와 과거 조리 시작 시간을

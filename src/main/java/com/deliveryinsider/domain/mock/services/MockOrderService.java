@@ -320,6 +320,12 @@ public class MockOrderService {
             case MIXED ->
                 // createOneOrder에서 실제 시나리오로 변환하므로 예비 처리
                     selectNormalMenus(menus);
+
+            case ALLERGY ->
+                    selectAllergyMenus(menus);
+
+            case LOSS ->
+                    selectLossMenus(menus);
         };
     }
 
@@ -475,19 +481,55 @@ public class MockOrderService {
 
         int randomValue = randomInt(1, 100);
 
-        if (randomValue <= 55) {
+        if (randomValue <= 40) {
             return MockOrderScenario.NORMAL;
         }
 
-        if (randomValue <= 75) {
+        if (randomValue <= 60) {
             return MockOrderScenario.GROUP;
         }
 
-        if (randomValue <= 90) {
+        if (randomValue <= 75) {
             return MockOrderScenario.PREMIUM;
         }
 
+        if (randomValue <= 85) {
+            return MockOrderScenario.ALLERGY;
+        }
+
+        if (randomValue <= 95) {
+            return MockOrderScenario.LOSS;
+        }
+
         return MockOrderScenario.DELAY_TEST;
+    }
+
+    /**
+     * 알러지 주문
+     */
+    private List<MenuQuantity> selectAllergyMenus(
+            List<Menu> menus
+    ) {
+        Menu menu = randomElement(menus);
+
+        return List.of(
+                new MenuQuantity(menu, 1)
+        );
+    }
+
+    /**
+     * 손실 위험 주문
+     */
+    private List<MenuQuantity> selectLossMenus(
+            List<Menu> menus
+    ) {
+        Menu expensiveMenu = menus.stream()
+                .max(Comparator.comparingInt(Menu::getMenuPrice))
+                .orElseThrow();
+
+        return List.of(
+                new MenuQuantity(expensiveMenu, 8)
+        );
     }
 
     /**
@@ -579,6 +621,50 @@ public class MockOrderService {
             Menu menu,
             int quantity
     ) {
+    }
+
+    @Transactional(rollbackFor = Exception.class)
+    public MockOrderCreateResponse createPeak(Long userId) {
+
+        create(
+                userId,
+                new MockOrderCreateRequest(
+                        2,
+                        MockOrderScenario.GROUP
+                )
+        );
+
+        create(
+                userId,
+                new MockOrderCreateRequest(
+                        1,
+                        MockOrderScenario.PREMIUM
+                )
+        );
+
+        create(
+                userId,
+                new MockOrderCreateRequest(
+                        1,
+                        MockOrderScenario.ALLERGY
+                )
+        );
+
+        create(
+                userId,
+                new MockOrderCreateRequest(
+                        1,
+                        MockOrderScenario.LOSS
+                )
+        );
+
+        return create(
+                userId,
+                new MockOrderCreateRequest(
+                        1,
+                        MockOrderScenario.DELAY_TEST
+                )
+        );
     }
     /**
      * 로그인 사용자의 매장에 속한 Mock 주문 전체 삭제
