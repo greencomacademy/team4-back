@@ -16,6 +16,8 @@ public record StoreRes(
 
         String storeName,
 
+        String phone,
+
         String businessNumber,
         
         // 사업자번호 유효 상태

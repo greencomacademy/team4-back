@@ -72,6 +72,7 @@ public class StoreService {
                 .kitchenCapacity(storeCreateReq.kitchenCapacity())
                 .openTime(storeCreateReq.openTime())
                 .closeTime(storeCreateReq.closeTime())
+                .phone(storeCreateReq.phone())
                 .build();
 
         // 4. DB 저장
@@ -187,6 +188,11 @@ public class StoreService {
                 storeUpdateReq.storeName()
         );
 
+        String changePhone = getChangedValue(
+                currentStore.getPhone(),
+                storeUpdateReq.phone()
+        );
+
         String changedAddress = getChangedValue(
                 currentStore.getAddress(),
                 storeUpdateReq.address()
@@ -200,6 +206,11 @@ public class StoreService {
         String changedAddressDetail = getChangedValue(
                 currentStore.getAddressDetail(),
                 storeUpdateReq.addressDetail()
+        );
+
+        BusinessStatus changeBusinessStatus = getChangedValue(
+                currentStore.getBusinessStatus(),
+                storeUpdateReq.businessStatus() != null ? BusinessStatus.valueOf(storeUpdateReq.businessStatus()):null
         );
 
         String changedIndustryType = getChangedValue(
@@ -236,6 +247,7 @@ public class StoreService {
                         || changedKitchenCapacity != null
                         || changedOpenTime != null
                         || changedCloseTime != null
+                        || changeBusinessStatus != null;
                         || changedOperationStatus != null;
 
         if (!hasChangedValue) {
@@ -256,7 +268,9 @@ public class StoreService {
                 .phone(changedPhone)
                 .userId(userId)
                 .storeName(changedStoreName)
+                .phone(changePhone)
                 .businessNumber(changedBusinessNumber)
+                .businessStatus(changeBusinessStatus)
                 .address(changedAddress)
                 .addressDetail(changedAddressDetail)
                 .industryType(changedIndustryType)

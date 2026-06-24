@@ -1,0 +1,183 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.deliveryinsider.domain.menus.mapper.MenuMapper">
+
+    <resultMap id="menuResultMap"
+               type="com.deliveryinsider.domain.menus.entities.Menu">
+
+        <id property="id"
+            column="id"/>
+
+        <result property="storeId"
+                column="store_id"/>
+
+        <result property="menuName"
+                column="menu_name"/>
+
+        <result property="menuPrice"
+                column="menu_price"/>
+
+        <result property="menuCost"
+                column="menu_cost"/>
+
+        <result property="packagingFee"
+                column="packaging_fee"/>
+
+        <result property="expectedCookingTime"
+                column="expected_cooking_time"/>
+
+        <result property="batchCapacity"
+                column="batch_capacity"/>
+
+        <result property="createdAt"
+                column="created_at"/>
+
+        <result property="updatedAt"
+                column="updated_at"/>
+
+        <result property="deletedAt"
+                column="deleted_at"/>
+
+    </resultMap>
+
+
+    <!-- 메뉴 등록 -->
+    <insert id="save"
+            parameterType="com.deliveryinsider.domain.menus.entities.Menu"
+            useGeneratedKeys="true"
+            keyProperty="id">
+
+        INSERT INTO menus (
+        store_id,
+        menu_name,
+        menu_price,
+        menu_cost,
+        packaging_fee,
+        expected_cooking_time,
+        batch_capacity
+        )
+        VALUES (
+        #{storeId},
+        #{menuName},
+        #{menuPrice},
+        #{menuCost},
+        #{packagingFee},
+        #{expectedCookingTime},
+        #{batchCapacity}
+        )
+
+    </insert>
+
+
+    <!-- 특정 매장의 활성 메뉴 전체 조회 -->
+    <select id="findAllByStoreId"
+            resultMap="menuResultMap">
+
+        SELECT
+        id,
+        store_id,
+        menu_name,
+        menu_price,
+        menu_cost,
+        packaging_fee,
+        expected_cooking_time,
+        batch_capacity,
+        created_at,
+        updated_at,
+        deleted_at
+
+        FROM menus
+
+        WHERE store_id = #{storeId}
+        AND deleted_at IS NULL
+
+        ORDER BY id DESC
+
+    </select>
+
+
+    <!-- 특정 매장에 소속된 활성 메뉴 한 건 조회 -->
+    <select id="findByIdAndStoreId"
+            resultMap="menuResultMap">
+
+        SELECT
+        id,
+        store_id,
+        menu_name,
+        menu_price,
+        menu_cost,
+        packaging_fee,
+        expected_cooking_time,
+        batch_capacity,
+        created_at,
+        updated_at,
+        deleted_at
+
+        FROM menus
+
+        WHERE id = #{id}
+        AND store_id = #{storeId}
+        AND deleted_at IS NULL
+
+    </select>
+
+
+    <!-- 메뉴 부분 수정 -->
+    <update id="update"
+            parameterType="com.deliveryinsider.domain.menus.entities.Menu">
+
+        UPDATE menus
+
+        <set>
+            <if test="menuName != null">
+                menu_name = #{menuName},
+            </if>
+
+            <if test="menuPrice != null">
+                menu_price = #{menuPrice},
+            </if>
+
+            <if test="menuCost != null">
+                menu_cost = #{menuCost},
+            </if>
+
+            <if test="packagingFee != null">
+                packaging_fee = #{packagingFee},
+            </if>
+
+            <if test="expectedCookingTime != null">
+                expected_cooking_time = #{expectedCookingTime},
+            </if>
+
+            <if test="batchCapacity != null">
+                batch_capacity = #{batchCapacity},
+            </if>
+
+            updated_at = NOW()
+        </set>
+
+        WHERE id = #{id}
+        AND store_id = #{storeId}
+        AND deleted_at IS NULL
+
+    </update>
+
+
+    <!-- 메뉴 소프트 삭제 -->
+    <update id="softDelete">
+
+        UPDATE menus
+
+        SET deleted_at = NOW(),
+        updated_at = NOW()
+
+        WHERE id = #{id}
+        AND store_id = #{storeId}
+        AND deleted_at IS NULL
+
+    </update>
+
+</mapper>

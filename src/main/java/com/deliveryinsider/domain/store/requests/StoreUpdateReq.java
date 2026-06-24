@@ -20,6 +20,12 @@ public record StoreUpdateReq(
         @Size(max = 20, message = "가게번호는 20자 이하 여야 합니다.")
         String phone,
 
+        @Size(max = 20, message = "가게번호는 20자 이하 여야 합니다.")
+        String phone,
+
+        @Size(max = 20, message = "가게 상태는 최대 20글자 입니다.")
+        String businessStatus,
+
         @Pattern(
                 regexp = "^\\d{10}$",
                 message = "사업자등록번호는 하이픈 없이 숫자 10자리여야 합니다."
@@ -78,6 +84,8 @@ public record StoreUpdateReq(
                 || kitchenCapacity != null
                 || openTime != null
                 || closeTime != null
+                || businessStatus != null;
                 || operationStatus != null ;
+
     }
 }
