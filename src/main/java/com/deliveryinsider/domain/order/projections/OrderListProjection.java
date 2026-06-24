@@ -18,6 +18,7 @@ public class OrderListProjection {
 
     private Long id;
     private String orderNo;
+    private String platformOrderNumber;
     private PlatformType platformType;
     private OrderStatus orderStatus;
 
@@ -32,5 +33,6 @@ public class OrderListProjection {
     private String menuSummary;
 
     private LocalDateTime orderedAt;
+    private String deliveryAddress;
     private LocalDateTime cookingStartedAt;
 }
