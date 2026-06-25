@@ -18,6 +18,9 @@ import com.deliveryinsider.domain.order.enums.OrderCanceledByType;
 import com.deliveryinsider.domain.order.mapper.OrderCancellationMapper;
 import com.deliveryinsider.global.errors.custom.NotRegisteredStoreException;
 import org.springframework.util.StringUtils;
+import com.deliveryinsider.domain.order.entities.OrderRefund;
+import com.deliveryinsider.domain.order.enums.OrderRefundedByType;
+import com.deliveryinsider.domain.order.mapper.OrderRefundMapper;
 
 import com.deliveryinsider.global.errors.custom.BadRequestException;
 import com.deliveryinsider.global.errors.custom.DeletedRecordException;
@@ -44,7 +47,7 @@ public class OrderService {
         LocalDateTime endAt
     ) {
     }
-
+    private final OrderRefundMapper orderRefundMapper;
     /**
      * 내 활성 매장의 주문 목록 조회
      * platformType과 orderStatus는 null일 수 있으며,
@@ -148,13 +151,16 @@ public class OrderService {
 // 5. 취소 이력 조회
         OrderCancellation orderCancellation =
             orderCancellationMapper.findByOrderId(orderId);
-
-// 6. 주문 전체 정보와 상세 메뉴, 요구사항, 취소사유를 묶어서 응답
+// 6. 환불 이력 조회       
+        OrderRefund orderRefund =
+            orderRefundMapper.findByOrderId(orderId);
+// 7. 주문 전체 정보와 상세 메뉴, 요구사항, 취소사유를 묶어서 응답
         return toOrderDetailRes(
             order,
             orderItems,
             orderRequest,
-            orderCancellation
+            orderCancellation,
+            orderRefund
         );
     }
     
@@ -259,7 +265,8 @@ public class OrderService {
         Order order,
         List<OrderItem> orderItems,
         OrderRequest orderRequest,
-        OrderCancellation orderCancellation
+        OrderCancellation orderCancellation,
+        OrderRefund orderRefund
     ) {
         List<OrderItemResponse> itemResponses =
             orderItems.stream()
@@ -294,11 +301,36 @@ public class OrderService {
             .items(itemResponses)
             .request(toOrderRequestRes(orderRequest))
             .cancellation(toOrderCancellationRes(orderCancellation))
-
+            .refund(toOrderRefundRes(orderRefund))
+            
             .createdAt(order.getCreatedAt())
             .updatedAt(order.getUpdatedAt())
             .build();
     }
+    /**
+     * 주문 환불 이력 Entity를 응답 DTO로 변환한다.
+     * 환불되지 않은 주문이면 null을 반환한다.
+     */
+    private OrderRefundResponse toOrderRefundRes(
+        OrderRefund orderRefund
+    ) {
+        if (orderRefund == null) {
+            return null;
+        }
+
+        return OrderRefundResponse.builder()
+            .id(orderRefund.getId())
+            .refundType(orderRefund.getRefundType())
+            .refundReason(orderRefund.getRefundReason())
+            .previousStatus(orderRefund.getPreviousStatus())
+            .refundedByType(orderRefund.getRefundedByType())
+            .refundedByUserId(orderRefund.getRefundedByUserId())
+            .refundedAt(orderRefund.getRefundedAt())
+            .createdAt(orderRefund.getCreatedAt())
+            .build();
+    }
+    
+    
     /**
      * 주문 고객 요구사항 Entity를 응답 DTO로 변환한다.
      * 요구사항이 없는 주문이면 null을 반환한다.
@@ -391,7 +423,8 @@ public class OrderService {
 
         // 3. CANCELED 요청이면 취소 유형과 취소 사유를 검증
         validateCancellationRequest(nextStatus, updateReq);
-
+        // REFUND 요청이면 환불 유형과 환불 사유를 검증
+        validateRefundRequest(nextStatus, updateReq);
         // 4. 허용된 상태 전환인지 검사
         if (!isAllowedTransition(currentStatus, nextStatus)) {
             throw new BadRequestException(
@@ -430,6 +463,14 @@ public class OrderService {
                 updateReq
             );
         }
+        if (nextStatus == OrderStatus.REFUNDED) {
+            saveOrderRefund(
+                userId,
+                orderId,
+                currentStatus,
+                updateReq
+            );
+        }
         
         // 7. 변경된 주문 재조회
         Order updatedOrder =
@@ -455,13 +496,19 @@ public class OrderService {
         // 10. 취소 이력 조회
         OrderCancellation orderCancellation =
             orderCancellationMapper.findByOrderId(orderId);
-
-        // 11. 변경된 주문 상세 반환
+        
+        // 11. 환불 이력 조회
+        OrderRefund orderRefund =
+            orderRefundMapper.findByOrderId(orderId);
+        
+        
+        // 12. 변경된 주문 상세 반환
         return toOrderDetailRes(
             updatedOrder,
             orderItems,
             orderRequest,
-            orderCancellation
+            orderCancellation,
+            orderRefund
         );
     }
     /**
@@ -510,6 +557,56 @@ public class OrderService {
         if (!StringUtils.hasText(updateReq.cancelReason())) {
             throw new BadRequestException(
                 "주문 취소 시 취소 사유는 필수입니다."
+            );
+        }
+    }
+    /**
+     * 환불 요청일 때만 환불 유형과 환불 사유를 검사한다.
+     */
+    private void validateRefundRequest(
+        OrderStatus nextStatus,
+        OrderStatusUpdateRequest updateReq
+    ) {
+        if (nextStatus != OrderStatus.REFUNDED) {
+            return;
+        }
+
+        if (updateReq.refundType() == null) {
+            throw new BadRequestException(
+                "주문 환불 시 환불 유형은 필수입니다."
+            );
+        }
+
+        if (!StringUtils.hasText(updateReq.refundReason())) {
+            throw new BadRequestException(
+                "주문 환불 시 환불 사유는 필수입니다."
+            );
+        }
+    }
+    /**
+     * 주문 환불 사유를 order_refunds 테이블에 저장한다.
+     */
+    private void saveOrderRefund(
+        Long userId,
+        Long orderId,
+        OrderStatus previousStatus,
+        OrderStatusUpdateRequest updateReq
+    ) {
+        OrderRefund refund =
+            OrderRefund.builder()
+                .orderId(orderId)
+                .refundType(updateReq.refundType())
+                .refundReason(updateReq.refundReason().trim())
+                .previousStatus(previousStatus)
+                .refundedByType(OrderRefundedByType.OWNER)
+                .refundedByUserId(userId)
+                .build();
+
+        int result = orderRefundMapper.save(refund);
+
+        if (result != 1) {
+            throw new BadRequestException(
+                "주문 환불 사유 저장에 실패했습니다."
             );
         }
     }
