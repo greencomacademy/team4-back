@@ -21,7 +21,7 @@ public class MockOrderController {
     // TODO: Mock 대량 주문의 totalCookingTime이 과도하게 커지는 문제를 실제 주방의 병렬 조리 방식을 고려하여 현실적으로 조정한다.
     /**
      * Mock 주문 생성
-     * POST /api/orders/mock
+     * POST /api/mock-data/orders
      */
     @PostMapping
     public ResponseEntity<GlobalRes<MockOrderCreateResponse>> createMockOrders(
@@ -44,7 +44,6 @@ public class MockOrderController {
 
     /**
      * 로그인 사용자의 매장에 속한 Mock 주문 전체 삭제
-     *
      * DELETE /api/mock-data/orders
      */
     @DeleteMapping

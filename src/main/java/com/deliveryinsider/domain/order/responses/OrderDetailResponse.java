@@ -14,6 +14,7 @@ public record OrderDetailResponse(
     Long id,
     String orderNo,
     String platformOrderNumber,
+
     PlatformType platformType,
     OrderStatus orderStatus,
 
@@ -27,16 +28,20 @@ public record OrderDetailResponse(
     Integer netProfit,
 
     Integer totalCookingTime,
+    String deliveryAddress,
 
     LocalDateTime orderedAt,
     LocalDateTime cookingStartedAt,
-    LocalDateTime deliveryStartedAt,
     LocalDateTime completedAt,
     LocalDateTime canceledAt,
     LocalDateTime refundedAt,
 
     List<OrderItemResponse> items,
 
+    OrderRequestResponse request,
+    OrderCancellationResponse cancellation,
+    OrderRefundResponse refund,
+    
     LocalDateTime createdAt,
     LocalDateTime updatedAt
 

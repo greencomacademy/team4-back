@@ -73,7 +73,6 @@ public class StoreService {
                 .kitchenCapacity(storeCreateReq.kitchenCapacity())
                 .openTime(storeCreateReq.openTime())
                 .closeTime(storeCreateReq.closeTime())
-                .phone(storeCreateReq.phone())
                 .build();
 
         // 4. DB 저장
@@ -188,12 +187,7 @@ public class StoreService {
                 currentStore.getStoreName(),
                 storeUpdateReq.storeName()
         );
-
-        String changePhone = getChangedValue(
-                currentStore.getPhone(),
-                storeUpdateReq.phone()
-        );
-
+        
         String changedAddress = getChangedValue(
                 currentStore.getAddress(),
                 storeUpdateReq.address()
@@ -269,7 +263,6 @@ public class StoreService {
                 .phone(changedPhone)
                 .userId(userId)
                 .storeName(changedStoreName)
-                .phone(changePhone)
                 .businessNumber(changedBusinessNumber)
                 .businessStatus(changeBusinessStatus)
                 .address(changedAddress)
