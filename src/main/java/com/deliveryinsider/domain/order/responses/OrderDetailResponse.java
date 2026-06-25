@@ -40,7 +40,8 @@ public record OrderDetailResponse(
 
     OrderRequestResponse request,
     OrderCancellationResponse cancellation,
-
+    OrderRefundResponse refund,
+    
     LocalDateTime createdAt,
     LocalDateTime updatedAt
 
