@@ -20,6 +20,10 @@ import com.deliveryinsider.domain.report.projections.ReportCancellationSummaryPr
 import com.deliveryinsider.domain.report.responses.ReportCancellationResponse;
 import com.deliveryinsider.domain.report.responses.ReportCancellationSummaryResponse;
 
+
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
+import java.util.Arrays;
 import java.util.List;
 @Service
 @RequiredArgsConstructor
@@ -127,6 +131,138 @@ public class ReportService {
             .map(this::toReportOrderResponse)
             .toList();
     }
+    /**
+     * 운영 리포트 주문 목록 CSV 내보내기
+     * 기존 주문 리포트 목록 조회 조건을 그대로 사용해서
+     * 엑셀에서 열 수 있는 CSV 문자열을 생성한다.
+     */
+    @Transactional(readOnly = true)
+    public String exportOrdersCsv(
+        Long userId,
+        ReportSearchRequest searchReq
+    ) {
+        List<ReportOrderResponse> orders =
+            findOrders(
+                userId,
+                searchReq
+            );
+
+        StringBuilder csv = new StringBuilder();
+
+        /*
+         * UTF-8 BOM.
+         * 엑셀에서 한글이 깨지지 않게 하기 위해 CSV 맨 앞에 붙인다.
+         */
+        csv.append('\uFEFF');
+
+        appendCsvLine(
+            csv,
+            List.of(
+                "주문ID",
+                "플랫폼 주문번호",
+                "플랫폼",
+                "주문상태",
+                "메뉴요약",
+                "총수량",
+                "배달주소",
+                "주문금액",
+                "예상순수익",
+                "주문일시",
+                "조리시작일시",
+                "취소일시",
+                "요구사항",
+                "요구사항 위험유형",
+                "요구사항 위험등급",
+                "요구사항 분석메시지",
+                "취소유형",
+                "취소사유"
+            )
+        );
+
+        for (ReportOrderResponse order : orders) {
+            appendCsvLine(
+                csv,
+                Arrays.asList(
+                    order.id(),
+                    order.platformOrderNumber(),
+                    order.platformType(),
+                    order.orderStatus(),
+                    order.menuSummary(),
+                    order.totalQuantity(),
+                    order.deliveryAddress(),
+                    order.totalAmount(),
+                    order.netProfit(),
+                    formatDateTime(order.orderedAt()),
+                    formatDateTime(order.cookingStartedAt()),
+                    formatDateTime(order.canceledAt()),
+                    order.requestText(),
+                    order.requestRiskType(),
+                    order.requestRiskLevel(),
+                    order.requestAnalysisMessage(),
+                    order.cancelType(),
+                    order.cancelReason()
+                )
+            );
+        }
+
+        return csv.toString();
+    }
+    /**
+     * CSV 한 줄 추가
+     */
+    private void appendCsvLine(
+        StringBuilder csv,
+        List<?> values
+    ) {
+        String line =
+            values.stream()
+                .map(this::escapeCsv)
+                .reduce(
+                    (left, right) -> left + "," + right
+                )
+                .orElse("");
+
+        csv.append(line)
+            .append(System.lineSeparator());
+    }
+
+    /**
+     * CSV 값 escape 처리
+     * 쉼표, 줄바꿈, 쌍따옴표가 들어가도
+     * 엑셀에서 한 칸으로 읽히게 만든다.
+     */
+    private String escapeCsv(
+        Object value
+    ) {
+        if (value == null) {
+            return "";
+        }
+
+        String text =
+            String.valueOf(value);
+
+        String escapedText =
+            text.replace("\"", "\"\"");
+
+        return "\"" + escapedText + "\"";
+    }
+
+    /**
+     * LocalDateTime 출력 형식 통일
+     */
+    private String formatDateTime(
+        LocalDateTime dateTime
+    ) {
+        if (dateTime == null) {
+            return "";
+        }
+
+        return dateTime.format(
+            DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")
+        );
+    }
+    
+    
     private ReportOrderResponse toReportOrderResponse(
         ReportOrderProjection order
     ) {

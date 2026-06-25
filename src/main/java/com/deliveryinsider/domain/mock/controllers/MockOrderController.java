@@ -43,7 +43,6 @@ public class MockOrderController {
     }
     /**
      * 로그인 사용자의 매장에 속한 Mock 주문 전체 삭제
-     *
      * DELETE /api/mock-data/orders
      */
     @DeleteMapping
