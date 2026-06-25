@@ -43,29 +43,6 @@ public class MockOrderController {
     }
 
     /**
-     * 발표용 피크타임 Mock 주문 세트 생성
-     *
-     * POST /api/mock-data/orders/peak
-     */
-    @PostMapping("/peak")
-    public ResponseEntity<GlobalRes<MockOrderCreateResponse>> createPeakMockOrders(
-            Authentication authentication
-    ) {
-        Long userId = extractUserId(authentication);
-
-        MockOrderCreateResponse result =
-                mockOrderService.createPeak(userId);
-
-        return ResponseEntity.ok(
-                GlobalRes.<MockOrderCreateResponse>builder()
-                        .code("00")
-                        .message("피크타임 Mock 주문 생성 성공")
-                        .data(result)
-                        .build()
-        );
-    }
-
-    /**
      * 로그인 사용자의 매장에 속한 Mock 주문 전체 삭제
      *
      * DELETE /api/mock-data/orders

@@ -321,11 +321,6 @@ public class MockOrderService {
                 // createOneOrder에서 실제 시나리오로 변환하므로 예비 처리
                     selectNormalMenus(menus);
 
-            case ALLERGY ->
-                    selectAllergyMenus(menus);
-
-            case LOSS ->
-                    selectLossMenus(menus);
         };
     }
 
@@ -493,43 +488,7 @@ public class MockOrderService {
             return MockOrderScenario.PREMIUM;
         }
 
-        if (randomValue <= 85) {
-            return MockOrderScenario.ALLERGY;
-        }
-
-        if (randomValue <= 95) {
-            return MockOrderScenario.LOSS;
-        }
-
         return MockOrderScenario.DELAY_TEST;
-    }
-
-    /**
-     * 알러지 주문
-     */
-    private List<MenuQuantity> selectAllergyMenus(
-            List<Menu> menus
-    ) {
-        Menu menu = randomElement(menus);
-
-        return List.of(
-                new MenuQuantity(menu, 1)
-        );
-    }
-
-    /**
-     * 손실 위험 주문
-     */
-    private List<MenuQuantity> selectLossMenus(
-            List<Menu> menus
-    ) {
-        Menu expensiveMenu = menus.stream()
-                .max(Comparator.comparingInt(Menu::getMenuPrice))
-                .orElseThrow();
-
-        return List.of(
-                new MenuQuantity(expensiveMenu, 8)
-        );
     }
 
     /**
@@ -642,21 +601,6 @@ public class MockOrderService {
                 )
         );
 
-        create(
-                userId,
-                new MockOrderCreateRequest(
-                        1,
-                        MockOrderScenario.ALLERGY
-                )
-        );
-
-        create(
-                userId,
-                new MockOrderCreateRequest(
-                        1,
-                        MockOrderScenario.LOSS
-                )
-        );
 
         return create(
                 userId,
