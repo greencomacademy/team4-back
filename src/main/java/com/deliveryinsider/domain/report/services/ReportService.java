@@ -166,16 +166,27 @@ public class ReportService {
                 "총수량",
                 "배달주소",
                 "주문금액",
+                "플랫폼수수료",
+                "배달비부담",
+                "쿠폰부담",
+                "플랫폼지원금",
+                "메뉴원가",
+                "포장비",
                 "예상순수익",
                 "주문일시",
                 "조리시작일시",
+                "완료일시",
                 "취소일시",
+                "환불일시",
                 "요구사항",
                 "요구사항 위험유형",
                 "요구사항 위험등급",
                 "요구사항 분석메시지",
                 "취소유형",
-                "취소사유"
+                "취소사유",
+                "환불유형",
+                "환불사유"
+
             )
         );
 
@@ -191,16 +202,26 @@ public class ReportService {
                     order.totalQuantity(),
                     order.deliveryAddress(),
                     order.totalAmount(),
+                    order.commissionAmount(),
+                    order.deliveryFee(),
+                    order.couponCost(),
+                    order.platformSupportAmount(),
+                    order.totalMenuCost(),
+                    order.totalPackagingFee(),
                     order.netProfit(),
                     formatDateTime(order.orderedAt()),
                     formatDateTime(order.cookingStartedAt()),
+                    formatDateTime(order.completedAt()),
                     formatDateTime(order.canceledAt()),
+                    formatDateTime(order.refundedAt()),
                     order.requestText(),
                     order.requestRiskType(),
                     order.requestRiskLevel(),
                     order.requestAnalysisMessage(),
                     order.cancelType(),
-                    order.cancelReason()
+                    order.cancelReason(),
+                    order.refundType(),
+                    order.refundReason()
                 )
             );
         }
@@ -276,10 +297,18 @@ public class ReportService {
             .totalQuantity(order.getTotalQuantity())
             .deliveryAddress(order.getDeliveryAddress())
             .totalAmount(order.getTotalAmount())
+            .commissionAmount(order.getCommissionAmount())
+            .deliveryFee(order.getDeliveryFee())
+            .couponCost(order.getCouponCost())
+            .platformSupportAmount(order.getPlatformSupportAmount())
+            .totalMenuCost(order.getTotalMenuCost())
+            .totalPackagingFee(order.getTotalPackagingFee())
             .netProfit(order.getNetProfit())
             .orderedAt(order.getOrderedAt())
             .cookingStartedAt(order.getCookingStartedAt())
+            .completedAt(order.getCompletedAt())
             .canceledAt(order.getCanceledAt())
+            .refundedAt(order.getRefundedAt())
             .requestText(order.getRequestText())
             .requestRiskType(order.getRequestRiskType())
             .requestRiskLevel(order.getRequestRiskLevel())
@@ -288,6 +317,8 @@ public class ReportService {
             )
             .cancelType(order.getCancelType())
             .cancelReason(order.getCancelReason())
+                .refundType(order.getRefundType())
+                .refundReason(order.getRefundReason())
             .build();
     }
     /**

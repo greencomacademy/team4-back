@@ -175,6 +175,24 @@
         <result property="netProfit"
                 column="net_profit"/>
 
+        <result property="commissionAmount"
+                column="commission_amount"/>
+
+        <result property="deliveryFee"
+                column="delivery_fee"/>
+
+        <result property="couponCost"
+                column="coupon_cost"/>
+
+        <result property="platformSupportAmount"
+                column="platform_support_amount"/>
+
+        <result property="totalMenuCost"
+                column="total_menu_cost"/>
+
+        <result property="totalPackagingFee"
+                column="total_packaging_fee"/>
+
         <result property="orderedAt"
                 column="ordered_at"/>
 
@@ -183,6 +201,12 @@
 
         <result property="canceledAt"
                 column="canceled_at"/>
+
+        <result property="completedAt"
+                column="completed_at"/>
+
+        <result property="refundedAt"
+                column="refunded_at"/>
 
         <result property="requestText"
                 column="request_text"/>
@@ -202,6 +226,12 @@
         <result property="cancelReason"
                 column="cancel_reason"/>
 
+        <result property="refundType"
+                column="refund_type"/>
+
+        <result property="refundReason"
+                column="refund_reason"/>
+
     </resultMap>
     <select id="findOrders"
             resultMap="reportOrderProjectionResultMap">
@@ -213,11 +243,19 @@
         o.platform_type,
         o.order_status,
         o.total_amount,
+        o.commission_amount,
+        o.delivery_fee,
+        o.coupon_cost,
+        o.platform_support_amount,
+        o.total_menu_cost,
+        o.total_packaging_fee,
         o.net_profit,
         o.delivery_address,
         o.ordered_at,
         o.cooking_started_at,
+        o.completed_at,
         o.canceled_at,
+        o.refunded_at,
 
         order_request.request_text AS request_text,
         order_request.risk_type AS request_risk_type,
@@ -266,6 +304,11 @@
 
         LEFT JOIN order_cancellations order_cancellation
         ON order_cancellation.order_id = o.id
+
+        LEFT JOIN order_refunds order_refund
+        ON order_refund.order_id = o.id
+
+
 
         WHERE o.store_id = #{storeId}
         AND o.deleted_at IS NULL
@@ -500,6 +543,8 @@
 
         order_cancellation.previous_status AS previous_status,
         order_cancellation.cancel_type AS cancel_type,
+        order_refund.refund_type AS refund_type,
+        order_refund.refund_reason AS refund_reason,
         order_cancellation.cancel_reason AS cancel_reason,
         order_cancellation.canceled_by_type AS canceled_by_type,
         order_cancellation.canceled_by_user_id AS canceled_by_user_id,
@@ -575,6 +620,8 @@
             OR order_request.request_text LIKE CONCAT('%', #{search.keyword}, '%')
             OR order_cancellation.cancel_type LIKE CONCAT('%', #{search.keyword}, '%')
             OR order_cancellation.cancel_reason LIKE CONCAT('%', #{search.keyword}, '%')
+            OR order_refund.refund_reason LIKE CONCAT('%', #{search.keyword}, '%')
+
             )
         </if>
 

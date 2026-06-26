@@ -30,6 +30,18 @@ public record ReportOrderResponse(
 
     Integer totalAmount,
 
+    Integer commissionAmount,
+
+    Integer deliveryFee,
+
+    Integer couponCost,
+
+    Integer platformSupportAmount,
+
+    Integer totalMenuCost,
+
+    Integer totalPackagingFee,
+
     Integer netProfit,
 
     LocalDateTime orderedAt,
@@ -37,6 +49,10 @@ public record ReportOrderResponse(
     LocalDateTime cookingStartedAt,
 
     LocalDateTime canceledAt,
+
+    LocalDateTime completedAt,
+
+    LocalDateTime refundedAt,
 
     String requestText,
 
@@ -48,7 +64,11 @@ public record ReportOrderResponse(
 
     String cancelType,
 
-    String cancelReason
+    String cancelReason,
+
+    String refundType,
+
+    String refundReason
 
 ) {
 }
