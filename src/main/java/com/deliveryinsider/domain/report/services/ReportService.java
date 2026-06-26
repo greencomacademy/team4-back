@@ -21,7 +21,9 @@ import com.deliveryinsider.domain.report.responses.ReportCancellationResponse;
 import com.deliveryinsider.domain.report.responses.ReportCancellationSummaryResponse;
 
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
 import java.util.Arrays;
 import java.util.List;
@@ -31,6 +33,12 @@ public class ReportService {
 
     private final StoreMapper storeMapper;
     private final ReportMapper reportMapper;
+
+    private record BusinessDayRange(
+        LocalDateTime startAt,
+        LocalDateTime endAt
+    ) {
+    }
 
     /**
      * 운영 리포트 요약 조회
@@ -44,10 +52,16 @@ public class ReportService {
 
         Store store = getActiveStore(userId);
 
+        ReportSearchRequest businessSearchReq =
+            toBusinessDaySearchRequest(
+                store,
+                searchReq
+            );
+
         ReportSummaryProjection projection =
             reportMapper.findSummary(
                 store.getId(),
-                searchReq
+                businessSearchReq
             );
 
         long totalOrderCount =
@@ -121,10 +135,16 @@ public class ReportService {
 
         Store store = getActiveStore(userId);
 
+        ReportSearchRequest businessSearchReq =
+            toBusinessDaySearchRequest(
+                store,
+                searchReq
+            );
+
         List<ReportOrderProjection> orders =
             reportMapper.findOrders(
                 store.getId(),
-                searchReq
+                businessSearchReq
             );
 
         return orders.stream()
@@ -333,10 +353,16 @@ public class ReportService {
 
         Store store = getActiveStore(userId);
 
+        ReportSearchRequest businessSearchReq =
+            toBusinessDaySearchRequest(
+                store,
+                searchReq
+            );
+
         List<ReportPlatformProjection> platforms =
             reportMapper.findPlatforms(
                 store.getId(),
-                searchReq
+                businessSearchReq
             );
 
         return platforms.stream()
@@ -355,10 +381,16 @@ public class ReportService {
 
         Store store = getActiveStore(userId);
 
+        ReportSearchRequest businessSearchReq =
+            toBusinessDaySearchRequest(
+                store,
+                searchReq
+            );
+
         List<ReportCancellationProjection> cancellations =
             reportMapper.findCancellations(
                 store.getId(),
-                searchReq
+                businessSearchReq
             );
 
         return cancellations.stream()
@@ -377,10 +409,16 @@ public class ReportService {
 
         Store store = getActiveStore(userId);
 
+        ReportSearchRequest businessSearchReq =
+            toBusinessDaySearchRequest(
+                store,
+                searchReq
+            );
+
         List<ReportCancellationSummaryProjection> summaries =
             reportMapper.findCancellationSummary(
                 store.getId(),
-                searchReq
+                businessSearchReq
             );
 
         return summaries.stream()
@@ -511,6 +549,128 @@ public class ReportService {
                 "시작일은 종료일보다 늦을 수 없습니다."
             );
         }
+    }
+
+    /**
+     * 리포트 조회 기간을 매장 영업시간 기준으로 변환한다.
+     *
+     * 예) 18:00 ~ 02:00 영업 매장
+     * startDate=2026-06-27, endDate=2026-06-27
+     * → 2026-06-27 18:00 이상, 2026-06-28 02:00 미만
+     *
+     * openTime과 closeTime이 같으면 24시간 영업으로 보고
+     * 하루 단위 범위로 계산한다.
+     */
+    private ReportSearchRequest toBusinessDaySearchRequest(
+        Store store,
+        ReportSearchRequest searchReq
+    ) {
+        BusinessDayRange businessDayRange =
+            calculateBusinessDayRange(
+                store,
+                searchReq.startDate(),
+                searchReq.endDate()
+            );
+
+        return ReportSearchRequest.builder()
+            .startDate(searchReq.startDate())
+            .endDate(searchReq.endDate())
+            .platformType(searchReq.platformType())
+            .orderStatus(searchReq.orderStatus())
+            .riskType(searchReq.riskType())
+            .keyword(searchReq.keyword())
+            .businessStartAt(businessDayRange.startAt())
+            .businessEndAt(businessDayRange.endAt())
+            .build();
+    }
+
+    private BusinessDayRange calculateBusinessDayRange(
+        Store store,
+        LocalDate startDate,
+        LocalDate endDate
+    ) {
+        LocalTime openTime = store.getOpenTime();
+        LocalTime closeTime = store.getCloseTime();
+
+        if (openTime == null || closeTime == null) {
+            throw new BadRequestException(
+                "매장 영업시간이 설정되어 있지 않습니다."
+            );
+        }
+
+        if (startDate == null && endDate == null) {
+            return calculateCurrentBusinessDayRange(
+                openTime,
+                closeTime
+            );
+        }
+
+        LocalDate resolvedStartDate =
+            startDate == null ? endDate : startDate;
+
+        LocalDate resolvedEndDate =
+            endDate == null ? startDate : endDate;
+
+        if (resolvedStartDate.isAfter(resolvedEndDate)) {
+            throw new BadRequestException(
+                "시작일은 종료일보다 늦을 수 없습니다."
+            );
+        }
+
+        boolean isOvernightOrAllDayBusiness =
+            !closeTime.isAfter(openTime);
+
+        LocalDateTime businessStartAt =
+            LocalDateTime.of(
+                resolvedStartDate,
+                openTime
+            );
+
+        LocalDate businessEndDate =
+            isOvernightOrAllDayBusiness
+                ? resolvedEndDate.plusDays(1)
+                : resolvedEndDate;
+
+        LocalDateTime businessEndAt =
+            LocalDateTime.of(
+                businessEndDate,
+                closeTime
+            );
+
+        return new BusinessDayRange(
+            businessStartAt,
+            businessEndAt
+        );
+    }
+
+    private BusinessDayRange calculateCurrentBusinessDayRange(
+        LocalTime openTime,
+        LocalTime closeTime
+    ) {
+        LocalDate today = LocalDate.now();
+        LocalTime nowTime = LocalTime.now();
+
+        boolean isOvernightOrAllDayBusiness =
+            !closeTime.isAfter(openTime);
+
+        if (!isOvernightOrAllDayBusiness) {
+            return new BusinessDayRange(
+                LocalDateTime.of(today, openTime),
+                LocalDateTime.of(today, closeTime)
+            );
+        }
+
+        if (nowTime.isBefore(closeTime)) {
+            return new BusinessDayRange(
+                LocalDateTime.of(today.minusDays(1), openTime),
+                LocalDateTime.of(today, closeTime)
+            );
+        }
+
+        return new BusinessDayRange(
+            LocalDateTime.of(today, openTime),
+            LocalDateTime.of(today.plusDays(1), closeTime)
+        );
     }
 
     private double calculateCancelRate(
