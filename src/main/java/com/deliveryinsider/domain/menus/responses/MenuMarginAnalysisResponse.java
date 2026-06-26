@@ -42,7 +42,19 @@ public record MenuMarginAnalysisResponse(
         CookingBurdenLevel cookingBurdenLevel,
 
         // 메뉴별 운영 분석 문구
-        String summary
+        String summary,
+
+        // 완료 주문 기준 전체 판매 수량
+        Integer totalSalesQuantity,
+
+        // 플랫폼별 완료 판매 수량
+        Integer baeminSalesQuantity,
+
+        Integer coupangEatsSalesQuantity,
+
+        Integer yogiyoSalesQuantity,
+
+        Integer ddangyoSalesQuantity
 
 ) {
 }

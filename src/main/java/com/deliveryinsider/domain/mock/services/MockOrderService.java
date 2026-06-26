@@ -172,6 +172,12 @@ public class MockOrderService {
         List<MenuQuantity> selectedMenus =
                 selectMenus(menus, actualScenario);
 
+        // 매장 최소주문금액 이상이 되도록 Mock 주문 수량 보정
+        selectedMenus = ensureMinimumOrderAmount(
+                selectedMenus,
+                zeroIfNull(store.getMinimumOrderAmount())
+        );
+
         // 주문 당시 메뉴 스냅샷 생성
         List<OrderItem> orderItems =
                 selectedMenus.stream()
@@ -487,6 +493,63 @@ public class MockOrderService {
                 )
                 .itemCookingTime(itemCookingTime)
                 .build();
+    }
+
+
+    /**
+     * Mock 주문 총액이 매장의 최소주문금액 이상이 되도록 수량을 보정한다.
+     * 발표용 Mock 데이터가 실제 배달 주문 조건과 맞지 않는 문제를 방지하기 위한 처리다.
+     */
+    private List<MenuQuantity> ensureMinimumOrderAmount(
+            List<MenuQuantity> selectedMenus,
+            int minimumOrderAmount
+    ) {
+        if (minimumOrderAmount <= 0 || selectedMenus.isEmpty()) {
+            return selectedMenus;
+        }
+
+        int currentAmount = selectedMenus.stream()
+                .mapToInt(menuQuantity ->
+                        menuQuantity.menu().getMenuPrice()
+                                * menuQuantity.quantity()
+                )
+                .sum();
+
+        if (currentAmount >= minimumOrderAmount) {
+            return selectedMenus;
+        }
+
+        int targetIndex = 0;
+
+        for (int i = 0; i < selectedMenus.size(); i++) {
+            if (selectedMenus.get(i).menu().getMenuPrice() > 0) {
+                targetIndex = i;
+                break;
+            }
+        }
+
+        MenuQuantity target = selectedMenus.get(targetIndex);
+        int menuPrice = target.menu().getMenuPrice();
+
+        if (menuPrice <= 0) {
+            return selectedMenus;
+        }
+
+        int lackAmount = minimumOrderAmount - currentAmount;
+        int additionalQuantity = (int) Math.ceil(
+                (double) lackAmount / menuPrice
+        );
+
+        List<MenuQuantity> adjustedMenus = new ArrayList<>(selectedMenus);
+        adjustedMenus.set(
+                targetIndex,
+                new MenuQuantity(
+                        target.menu(),
+                        target.quantity() + additionalQuantity
+                )
+        );
+
+        return adjustedMenus;
     }
 
     /**

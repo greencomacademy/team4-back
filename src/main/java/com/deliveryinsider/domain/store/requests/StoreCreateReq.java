@@ -42,6 +42,10 @@ public record StoreCreateReq(
         @Min(value = 1, message = "주방 처리량은 1 이상이어야 합니다.")
         Integer kitchenCapacity,
 
+        @NotNull(message = "최소주문금액은 필수입니다.")
+        @Min(value = 0, message = "최소주문금액은 0 이상이어야 합니다.")
+        Integer minimumOrderAmount,
+
         @NotNull(message = "영업 시작 시간은 필수입니다.")
         LocalTime openTime,
 

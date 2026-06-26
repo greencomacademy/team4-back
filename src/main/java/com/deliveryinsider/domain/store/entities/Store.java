@@ -43,6 +43,9 @@ public class Store {
     // 동시에 처리 가능한 주문 수
     private Integer kitchenCapacity;
 
+    // 배달 최소 주문 금액
+    private Integer minimumOrderAmount;
+
     // 매일 반복되는 영업 시작 시각
     private LocalTime openTime;
 

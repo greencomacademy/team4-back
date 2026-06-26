@@ -71,6 +71,7 @@ public class StoreService {
                     ? OperationStatus.OPERATING
                     : storeCreateReq.operationStatus())
                 .kitchenCapacity(storeCreateReq.kitchenCapacity())
+                .minimumOrderAmount(storeCreateReq.minimumOrderAmount())
                 .openTime(storeCreateReq.openTime())
                 .closeTime(storeCreateReq.closeTime())
                 .build();
@@ -129,6 +130,7 @@ public class StoreService {
                 .addressDetail(store.getAddressDetail())
                 .industryType(store.getIndustryType())
                 .kitchenCapacity(store.getKitchenCapacity())
+                .minimumOrderAmount(store.getMinimumOrderAmount())
                 .openTime(store.getOpenTime())
                 .closeTime(store.getCloseTime())
                 .operationStatus(store.getOperationStatus())
@@ -217,6 +219,12 @@ public class StoreService {
                 currentStore.getKitchenCapacity(),
                 storeUpdateReq.kitchenCapacity()
         );
+
+        Integer changedMinimumOrderAmount = getChangedValue(
+                currentStore.getMinimumOrderAmount(),
+                storeUpdateReq.minimumOrderAmount()
+        );
+
         LocalTime changedOpenTime = getChangedValue(
                 currentStore.getOpenTime(),
                 storeUpdateReq.openTime()
@@ -240,6 +248,7 @@ public class StoreService {
                         || changedAddressDetail != null
                         || changedIndustryType != null
                         || changedKitchenCapacity != null
+                        || changedMinimumOrderAmount != null
                         || changedOpenTime != null
                         || changedCloseTime != null
                         || changeBusinessStatus != null
@@ -269,6 +278,7 @@ public class StoreService {
                 .addressDetail(changedAddressDetail)
                 .industryType(changedIndustryType)
                 .kitchenCapacity(changedKitchenCapacity)
+                .minimumOrderAmount(changedMinimumOrderAmount)
                 .openTime(changedOpenTime)
                 .closeTime(changedCloseTime)
                 .operationStatus(changedOperationStatus)

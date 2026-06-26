@@ -265,7 +265,7 @@
         order_cancellation.cancel_type AS cancel_type,
         order_cancellation.cancel_reason AS cancel_reason,
         order_refund.refund_type AS refund_type,
-        order_refund.refund_reason AS refund_reason
+        order_refund.refund_reason AS refund_reason,
 
         COALESCE(item_summary.total_quantity, 0)
         AS total_quantity,

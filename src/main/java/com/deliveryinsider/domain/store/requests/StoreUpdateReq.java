@@ -53,6 +53,9 @@ public record StoreUpdateReq(
         @Min(value = 1, message = "주방 처리량은 1 이상이어야 합니다.")
         Integer kitchenCapacity,
 
+        @Min(value = 0, message = "최소주문금액은 0 이상이어야 합니다.")
+        Integer minimumOrderAmount,
+
         /*
          * PATCH 요청이므로 null이면 기존 영업 시작 시간을 유지한다.
          */
@@ -79,6 +82,7 @@ public record StoreUpdateReq(
                 || addressDetail != null
                 || industryType != null
                 || kitchenCapacity != null
+                || minimumOrderAmount != null
                 || openTime != null
                 || closeTime != null
                 || businessStatus != null

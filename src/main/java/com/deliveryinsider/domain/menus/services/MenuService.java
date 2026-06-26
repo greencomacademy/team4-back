@@ -3,20 +3,29 @@ package com.deliveryinsider.domain.menus.services;
 import com.deliveryinsider.domain.menus.enums.CookingBurdenLevel;
 import com.deliveryinsider.domain.menus.responses.MenuMarginAnalysisResponse;
 import com.deliveryinsider.domain.menus.entities.Menu;
+import com.deliveryinsider.domain.menus.entities.MenuLossDismissal;
 import com.deliveryinsider.domain.menus.mapper.MenuMapper;
+import com.deliveryinsider.domain.menus.projections.MenuSalesQuantityProjection;
 import com.deliveryinsider.domain.menus.requests.MenuCreateRequest;
+import com.deliveryinsider.domain.menus.requests.MenuLossDismissRequest;
 import com.deliveryinsider.domain.menus.requests.MenuUpdateRequest;
 import com.deliveryinsider.domain.menus.responses.MenuResponse;
+import com.deliveryinsider.domain.menus.responses.MenuLossDismissalResponse;
 import com.deliveryinsider.domain.store.entities.Store;
 import com.deliveryinsider.domain.store.mappers.StoreMapper;
 import com.deliveryinsider.global.errors.custom.DeletedRecordException;
+import com.deliveryinsider.global.enums.PlatformType;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.time.LocalDateTime;
+import java.util.EnumMap;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
 @Service
@@ -96,16 +105,27 @@ public class MenuService {
     public List<MenuMarginAnalysisResponse> findMarginAnalysis(
             Long userId
     ) {
-        /*
-         * 기존 메뉴 전체 조회를 재사용한다.
-         *
-         * MenuRes에는 이미 예상 마진과
-         * 예상 마진율이 계산되어 있다.
-         */
-        List<MenuResponse> menus = findAll(userId);
+        Store store = getActiveStore(userId);
+
+        List<Menu> menus =
+                menuMapper.findAllByStoreId(store.getId());
+
+        Map<Long, Map<PlatformType, Integer>> salesQuantityMap =
+                createSalesQuantityMap(
+                        menuMapper.findSalesQuantityByStoreId(
+                                store.getId()
+                        )
+                );
 
         return menus.stream()
-                .map(this::toMenuMarginAnalysisRes)
+                .map(this::toMenuRes)
+                .map(menu -> toMenuMarginAnalysisRes(
+                        menu,
+                        salesQuantityMap.getOrDefault(
+                                menu.id(),
+                                new EnumMap<>(PlatformType.class)
+                        )
+                ))
                 .toList();
     }
 
@@ -226,7 +246,13 @@ public class MenuService {
             );
         }
 
-        // 7. 수정 결과 재조회
+        // 7. 메뉴 기준정보가 바뀌면 기존 확인 완료 숨김은 해제한다.
+        menuMapper.restoreLossDismissal(
+                store.getId(),
+                menuId
+        );
+
+        // 8. 수정 결과 재조회
         Menu updatedMenu =
                 menuMapper.findByIdAndStoreId(
                         menuId,
@@ -262,6 +288,104 @@ public class MenuService {
                     "삭제할 메뉴를 찾을 수 없습니다."
             );
         }
+    }
+
+    /**
+     * 숨은 손실 메뉴 확인 완료 목록 조회
+     */
+    @Transactional(readOnly = true)
+    public List<MenuLossDismissalResponse> findActiveLossDismissals(
+            Long userId
+    ) {
+        Store store = getActiveStore(userId);
+
+        return menuMapper.findActiveLossDismissalsByStoreId(
+                        store.getId()
+                )
+                .stream()
+                .map(this::toMenuLossDismissalRes)
+                .toList();
+    }
+
+    /**
+     * 숨은 손실 메뉴를 일정 기간 확인 완료 처리한다.
+     */
+    @Transactional(rollbackFor = Exception.class)
+    public MenuLossDismissalResponse dismissLossMenu(
+            Long userId,
+            Long menuId,
+            MenuLossDismissRequest dismissReq
+    ) {
+        Store store = getActiveStore(userId);
+
+        Menu menu = menuMapper.findByIdAndStoreId(
+                menuId,
+                store.getId()
+        );
+
+        if (menu == null) {
+            throw new DeletedRecordException(
+                    "확인 완료 처리할 메뉴를 찾을 수 없습니다."
+            );
+        }
+
+        int hideDays = dismissReq != null
+                && dismissReq.hideDays() != null
+                ? dismissReq.hideDays()
+                : 7;
+
+        LocalDateTime hideUntil =
+                LocalDateTime.now().plusDays(hideDays);
+
+        MenuLossDismissal dismissal =
+                MenuLossDismissal.builder()
+                        .storeId(store.getId())
+                        .menuId(menuId)
+                        .hideUntil(hideUntil)
+                        .build();
+
+        menuMapper.upsertLossDismissal(dismissal);
+
+        MenuLossDismissal savedDismissal =
+                menuMapper.findLossDismissalByStoreIdAndMenuId(
+                        store.getId(),
+                        menuId
+                );
+
+        if (savedDismissal == null) {
+            throw new RuntimeException(
+                    "숨은 손실 메뉴 확인 완료 저장 후 조회에 실패했습니다."
+            );
+        }
+
+        return toMenuLossDismissalRes(savedDismissal);
+    }
+
+    /**
+     * 숨은 손실 메뉴 확인 완료 처리를 해제한다.
+     */
+    @Transactional(rollbackFor = Exception.class)
+    public void restoreLossMenu(
+            Long userId,
+            Long menuId
+    ) {
+        Store store = getActiveStore(userId);
+
+        Menu menu = menuMapper.findByIdAndStoreId(
+                menuId,
+                store.getId()
+        );
+
+        if (menu == null) {
+            throw new DeletedRecordException(
+                    "다시 표시할 메뉴를 찾을 수 없습니다."
+            );
+        }
+
+        menuMapper.restoreLossDismissal(
+                store.getId(),
+                menuId
+        );
     }
 
     /**
@@ -345,7 +469,8 @@ public class MenuService {
      * MenuRes를 메뉴별 마진 분석 응답으로 변환한다.
      */
     private MenuMarginAnalysisResponse toMenuMarginAnalysisRes(
-            MenuResponse menu
+            MenuResponse menu,
+            Map<PlatformType, Integer> salesQuantityByPlatform
     ) {
         BigDecimal cookingBurdenScore =
                 calculateCookingBurdenScore(
@@ -386,7 +511,97 @@ public class MenuService {
                         cookingBurdenLevel
                 )
                 .summary(summary)
+                .totalSalesQuantity(
+                        getTotalSalesQuantity(
+                                salesQuantityByPlatform
+                        )
+                )
+                .baeminSalesQuantity(
+                        getSalesQuantity(
+                                salesQuantityByPlatform,
+                                PlatformType.BAEMIN
+                        )
+                )
+                .coupangEatsSalesQuantity(
+                        getSalesQuantity(
+                                salesQuantityByPlatform,
+                                PlatformType.COUPANG_EATS
+                        )
+                )
+                .yogiyoSalesQuantity(
+                        getSalesQuantity(
+                                salesQuantityByPlatform,
+                                PlatformType.YOGIYO
+                        )
+                )
+                .ddangyoSalesQuantity(
+                        getSalesQuantity(
+                                salesQuantityByPlatform,
+                                PlatformType.DDANGYO
+                        )
+                )
                 .build();
+    }
+
+    /**
+     * 숨은 손실 메뉴 확인 완료 응답 변환
+     */
+    private MenuLossDismissalResponse toMenuLossDismissalRes(
+            MenuLossDismissal dismissal
+    ) {
+        return MenuLossDismissalResponse.builder()
+                .id(dismissal.getId())
+                .menuId(dismissal.getMenuId())
+                .dismissedAt(dismissal.getDismissedAt())
+                .hideUntil(dismissal.getHideUntil())
+                .build();
+    }
+
+    /**
+     * 메뉴별 플랫폼 판매 수량을 빠르게 찾기 위한 Map으로 변환한다.
+     */
+    private Map<Long, Map<PlatformType, Integer>> createSalesQuantityMap(
+            List<MenuSalesQuantityProjection> projections
+    ) {
+        Map<Long, Map<PlatformType, Integer>> result = new HashMap<>();
+
+        for (MenuSalesQuantityProjection projection : projections) {
+            if (projection.getMenuId() == null
+                    || projection.getPlatformType() == null) {
+                continue;
+            }
+
+            result.computeIfAbsent(
+                    projection.getMenuId(),
+                    key -> new EnumMap<>(PlatformType.class)
+            ).put(
+                    projection.getPlatformType(),
+                    projection.getSalesQuantity() == null
+                            ? 0
+                            : projection.getSalesQuantity()
+            );
+        }
+
+        return result;
+    }
+
+    private Integer getSalesQuantity(
+            Map<PlatformType, Integer> salesQuantityByPlatform,
+            PlatformType platformType
+    ) {
+        return salesQuantityByPlatform.getOrDefault(
+                platformType,
+                0
+        );
+    }
+
+    private Integer getTotalSalesQuantity(
+            Map<PlatformType, Integer> salesQuantityByPlatform
+    ) {
+        return salesQuantityByPlatform.values()
+                .stream()
+                .mapToInt(Integer::intValue)
+                .sum();
     }
 
     /**

@@ -31,6 +31,9 @@ public record StoreRes(
 
         Integer kitchenCapacity,
 
+        // 배달 최소 주문 금액
+        Integer minimumOrderAmount,
+
         // 매일 반복되는 영업 시작 시각
         LocalTime openTime,
 
