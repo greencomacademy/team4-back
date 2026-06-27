@@ -232,22 +232,19 @@ public class MockOrderService {
         );
 
         /*
-         * LOSS 시나리오는 프론트/대시보드에서 손실 위험을 확인하기 위한 주문이다.
-         * 기존에는 netProfit이 0 이하가 될 때까지 쿠폰 부담금을 크게 올렸기 때문에
-         * 현실성이 떨어지는 Mock 주문이 생성될 수 있었다.
+         * LOSS 시나리오는 메뉴 자체가 반드시 적자인 주문이 아니라,
+         * 쿠폰·프로모션 부담이 붙었을 때 주문 단위 순수익이 낮아지는 상황을
+         * 보여주기 위한 Mock 주문이다.
          *
-         * 1차 기준에서는 쿠폰 부담을 주문금액의 최대 30%까지만 허용한다.
-         * 30% 안에서 손실이 나면 손실 주문으로 보이고,
-         * 그래도 손실이 나지 않으면 낮은 순수익 주문으로 남겨
-         * 실제 운영에 가까운 프로모션 부담 사례로 사용한다.
+         * 1차 기준에서는 쿠폰 부담을 주문금액의 15~30% 범위 안에서만 적용한다.
+         * 따라서 결과가 반드시 손실로 고정되지는 않고,
+         * 실제 계산 결과에 따라 손실 위험 또는 낮은 순수익 주문으로 보인다.
          */
-        if (actualScenario == MockOrderScenario.LOSS
-            && netProfit > 0) {
+        if (actualScenario == MockOrderScenario.LOSS) {
 
             couponCost = calculateLossScenarioCouponCost(
                     totalAmount,
-                    couponCost,
-                    netProfit
+                    couponCost
             );
 
             netProfit = calculateNetProfit(
@@ -750,16 +747,40 @@ public class MockOrderService {
    
     /**
      * 손실 위험 주문
-     * 단순히 비싼 메뉴가 아니라 단품 수익률이 낮은 메뉴를 우선 선택한다.
-     * 이후 createOneOrder에서 쿠폰 부담금을 현실적인 범위 안에서만 보정한다.
+     * 메뉴 자체가 이미 적자인 메뉴만 고르면
+     * “프로모션 부담 때문에 주문 단위 순수익이 낮아진다”는 시나리오가 흐려진다.
+     *
+     * 그래서 단품 기준 순수익이 양수이고,
+     * 예상 수익률이 너무 높지도 낮지도 않은 메뉴를 우선 선택한다.
      */
     private List<MenuQuantity> selectLossMenus(
         List<Menu> menus
     ) {
-        Menu lossMenu = menus.stream()
+        List<Menu> candidateMenus = menus.stream()
+            .filter(this::hasPositiveUnitProfit)
+            .filter(menu -> {
+                double profitRate = calculateMenuProfitRate(menu);
+                return profitRate >= 0.10 && profitRate <= 0.35;
+            })
+            .toList();
+
+        if (candidateMenus.isEmpty()) {
+            candidateMenus = menus.stream()
+                .filter(this::hasPositiveUnitProfit)
+                .toList();
+        }
+
+        if (candidateMenus.isEmpty()) {
+            candidateMenus = menus;
+        }
+
+        List<Menu> shuffledMenus = new ArrayList<>(candidateMenus);
+        Collections.shuffle(shuffledMenus);
+
+        Menu lossMenu = shuffledMenus.stream()
             .min(
-                Comparator.<Menu>comparingDouble(
-                    this::calculateMenuProfitRate
+                Comparator.<Menu>comparingDouble(menu ->
+                    Math.abs(calculateMenuProfitRate(menu) - 0.20)
                 ).thenComparing(
                     Comparator.comparingInt(Menu::getMenuPrice).reversed()
                 )
@@ -769,7 +790,7 @@ public class MockOrderService {
         return List.of(
             new MenuQuantity(
                 lossMenu,
-                randomInt(2, 4)
+                randomInt(1, 3)
             )
         );
     }
@@ -922,32 +943,50 @@ public class MockOrderService {
 
     /**
      * 손실 위험 Mock 주문의 쿠폰 부담금 보정
-     * 쿠폰이 비현실적으로 커지지 않도록 주문금액의 30%를 상한으로 둔다.
+     * 순수익을 무조건 음수로 만들기 위해 쿠폰을 키우지 않는다.
+     * 주문금액의 15~30% 범위 안에서 프로모션 부담을 적용한다.
      */
     private int calculateLossScenarioCouponCost(
             int totalAmount,
-            int currentCouponCost,
-            int currentNetProfit
+            int currentCouponCost
     ) {
-        int couponLimit = calculateLossCouponLimit(totalAmount);
-        int targetCouponCost = currentCouponCost
-                + currentNetProfit
-                + randomInt(500, 1500);
+        int couponMinimum = calculateLossCouponAmount(
+                totalAmount,
+                15
+        );
+        int couponLimit = calculateLossCouponAmount(
+                totalAmount,
+                30
+        );
 
-        return Math.min(targetCouponCost, couponLimit);
+        if (couponLimit <= 0) {
+            return 0;
+        }
+
+        int promotionalCouponCost = randomInt(
+                couponMinimum,
+                couponLimit
+        );
+
+        return Math.min(
+                Math.max(currentCouponCost, promotionalCouponCost),
+                couponLimit
+        );
     }
 
     /**
-     * 주문금액 기준 쿠폰 부담 상한
-     * 1차 MVP에서는 최대 30%로 제한한다.
+     * 주문금액 기준 쿠폰 부담금 계산
      */
-    private int calculateLossCouponLimit(int totalAmount) {
+    private int calculateLossCouponAmount(
+            int totalAmount,
+            int percent
+    ) {
         if (totalAmount <= 0) {
             return 0;
         }
 
         return BigDecimal.valueOf(totalAmount)
-                .multiply(BigDecimal.valueOf(30))
+                .multiply(BigDecimal.valueOf(percent))
                 .divide(
                         BigDecimal.valueOf(100),
                         0,
@@ -969,6 +1008,17 @@ public class MockOrderService {
                 - menu.getPackagingFee();
 
         return (double) unitProfit / menu.getMenuPrice();
+    }
+
+    /**
+     * 단품 기준 순수익이 양수인지 확인
+     */
+    private boolean hasPositiveUnitProfit(Menu menu) {
+        int unitProfit = menu.getMenuPrice()
+                - menu.getMenuCost()
+                - menu.getPackagingFee();
+
+        return unitProfit > 0;
     }
 
     /**
