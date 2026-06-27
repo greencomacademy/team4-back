@@ -12,6 +12,14 @@
         AND deleted_at IS NULL
     </select>
 
+    <select id="countByEmailExceptId" resultType="int">
+        SELECT COUNT(*)
+        FROM users
+        WHERE email = #{email}
+          AND id != #{id}
+          AND deleted_at IS NULL
+    </select>
+
     <insert id="save"
             parameterType="com.deliveryinsider.domain.user.entities.User"
             useGeneratedKeys="true"
@@ -66,6 +74,14 @@
         UPDATE users
         SET refresh_token = NULL
         WHERE id = #{id}
+    </update>
+
+    <update id="updateEmail">
+        UPDATE users
+        SET email = #{email},
+            updated_at = NOW()
+        WHERE id = #{id}
+          AND deleted_at IS NULL
     </update>
 
     <select id="findByRefreshToken"

@@ -111,12 +111,31 @@
         WHERE o.store_id = #{storeId}
         AND o.deleted_at IS NULL
 
-        <if test="search.businessStartAt != null">
-            AND o.ordered_at &gt;= #{search.businessStartAt}
-        </if>
-
-        <if test="search.businessEndAt != null">
+        <if test="search.businessStartAt != null and search.businessEndAt != null">
+            AND (
+            (
+            o.ordered_at &gt;= #{search.businessStartAt}
             AND o.ordered_at &lt; #{search.businessEndAt}
+            )
+            OR (
+            o.order_status = 'COMPLETED'
+            AND o.completed_at IS NOT NULL
+            AND o.completed_at &gt;= #{search.businessStartAt}
+            AND o.completed_at &lt; #{search.businessEndAt}
+            )
+            OR (
+            o.order_status = 'CANCELED'
+            AND o.canceled_at IS NOT NULL
+            AND o.canceled_at &gt;= #{search.businessStartAt}
+            AND o.canceled_at &lt; #{search.businessEndAt}
+            )
+            OR (
+            o.order_status = 'REFUNDED'
+            AND o.refunded_at IS NOT NULL
+            AND o.refunded_at &gt;= #{search.businessStartAt}
+            AND o.refunded_at &lt; #{search.businessEndAt}
+            )
+            )
         </if>
 
         <if test="search.platformType != null">
@@ -315,12 +334,31 @@
         WHERE o.store_id = #{storeId}
         AND o.deleted_at IS NULL
 
-        <if test="search.businessStartAt != null">
-            AND o.ordered_at &gt;= #{search.businessStartAt}
-        </if>
-
-        <if test="search.businessEndAt != null">
+        <if test="search.businessStartAt != null and search.businessEndAt != null">
+            AND (
+            (
+            o.ordered_at &gt;= #{search.businessStartAt}
             AND o.ordered_at &lt; #{search.businessEndAt}
+            )
+            OR (
+            o.order_status = 'COMPLETED'
+            AND o.completed_at IS NOT NULL
+            AND o.completed_at &gt;= #{search.businessStartAt}
+            AND o.completed_at &lt; #{search.businessEndAt}
+            )
+            OR (
+            o.order_status = 'CANCELED'
+            AND o.canceled_at IS NOT NULL
+            AND o.canceled_at &gt;= #{search.businessStartAt}
+            AND o.canceled_at &lt; #{search.businessEndAt}
+            )
+            OR (
+            o.order_status = 'REFUNDED'
+            AND o.refunded_at IS NOT NULL
+            AND o.refunded_at &gt;= #{search.businessStartAt}
+            AND o.refunded_at &lt; #{search.businessEndAt}
+            )
+            )
         </if>
 
         <if test="search.platformType != null">
@@ -426,12 +464,31 @@
         WHERE o.store_id = #{storeId}
         AND o.deleted_at IS NULL
 
-        <if test="search.businessStartAt != null">
-            AND o.ordered_at &gt;= #{search.businessStartAt}
-        </if>
-
-        <if test="search.businessEndAt != null">
+        <if test="search.businessStartAt != null and search.businessEndAt != null">
+            AND (
+            (
+            o.ordered_at &gt;= #{search.businessStartAt}
             AND o.ordered_at &lt; #{search.businessEndAt}
+            )
+            OR (
+            o.order_status = 'COMPLETED'
+            AND o.completed_at IS NOT NULL
+            AND o.completed_at &gt;= #{search.businessStartAt}
+            AND o.completed_at &lt; #{search.businessEndAt}
+            )
+            OR (
+            o.order_status = 'CANCELED'
+            AND o.canceled_at IS NOT NULL
+            AND o.canceled_at &gt;= #{search.businessStartAt}
+            AND o.canceled_at &lt; #{search.businessEndAt}
+            )
+            OR (
+            o.order_status = 'REFUNDED'
+            AND o.refunded_at IS NOT NULL
+            AND o.refunded_at &gt;= #{search.businessStartAt}
+            AND o.refunded_at &lt; #{search.businessEndAt}
+            )
+            )
         </if>
 
         <if test="search.platformType != null">

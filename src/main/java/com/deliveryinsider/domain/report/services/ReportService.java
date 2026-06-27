@@ -553,11 +553,9 @@ public class ReportService {
 
     /**
      * 리포트 조회 기간을 매장 영업시간 기준으로 변환한다.
-     *
      * 예) 18:00 ~ 02:00 영업 매장
      * startDate=2026-06-27, endDate=2026-06-27
      * → 2026-06-27 18:00 이상, 2026-06-28 02:00 미만
-     *
      * openTime과 closeTime이 같으면 24시간 영업으로 보고
      * 하루 단위 범위로 계산한다.
      */
@@ -617,8 +615,15 @@ public class ReportService {
             );
         }
 
-        boolean isOvernightOrAllDayBusiness =
-            !closeTime.isAfter(openTime);
+        if (isAllDayBusiness(openTime, closeTime)) {
+            return createAllDayBusinessRange(
+                resolvedStartDate,
+                resolvedEndDate
+            );
+        }
+
+        boolean isOvernightBusiness =
+            closeTime.isBefore(openTime);
 
         LocalDateTime businessStartAt =
             LocalDateTime.of(
@@ -627,7 +632,7 @@ public class ReportService {
             );
 
         LocalDate businessEndDate =
-            isOvernightOrAllDayBusiness
+            isOvernightBusiness
                 ? resolvedEndDate.plusDays(1)
                 : resolvedEndDate;
 
@@ -650,10 +655,17 @@ public class ReportService {
         LocalDate today = LocalDate.now();
         LocalTime nowTime = LocalTime.now();
 
-        boolean isOvernightOrAllDayBusiness =
-            !closeTime.isAfter(openTime);
+        if (isAllDayBusiness(openTime, closeTime)) {
+            return createAllDayBusinessRange(
+                today,
+                today
+            );
+        }
 
-        if (!isOvernightOrAllDayBusiness) {
+        boolean isOvernightBusiness =
+            closeTime.isBefore(openTime);
+
+        if (!isOvernightBusiness) {
             return new BusinessDayRange(
                 LocalDateTime.of(today, openTime),
                 LocalDateTime.of(today, closeTime)
@@ -670,6 +682,23 @@ public class ReportService {
         return new BusinessDayRange(
             LocalDateTime.of(today, openTime),
             LocalDateTime.of(today.plusDays(1), closeTime)
+        );
+    }
+
+    private boolean isAllDayBusiness(
+        LocalTime openTime,
+        LocalTime closeTime
+    ) {
+        return openTime.equals(closeTime);
+    }
+
+    private BusinessDayRange createAllDayBusinessRange(
+        LocalDate startDate,
+        LocalDate endDate
+    ) {
+        return new BusinessDayRange(
+            LocalDateTime.of(startDate, LocalTime.MIN),
+            LocalDateTime.of(endDate.plusDays(1), LocalTime.MIN)
         );
     }
 

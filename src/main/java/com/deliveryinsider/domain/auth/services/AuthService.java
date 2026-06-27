@@ -1,6 +1,8 @@
 package com.deliveryinsider.domain.auth.services;
 
 import com.deliveryinsider.domain.auth.responses.ReissueTokenResponse;
+import com.deliveryinsider.domain.auth.requests.AuthEmailUpdateRequest;
+import com.deliveryinsider.domain.auth.responses.AuthMeResponse;
 import com.deliveryinsider.global.errors.custom.InvalidTokenException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -17,9 +19,12 @@ import com.deliveryinsider.domain.auth.requests.RegisterRequest;
 import com.deliveryinsider.domain.auth.responses.LoginResponse;
 import com.deliveryinsider.domain.auth.responses.RegisterResponse;
 import com.deliveryinsider.domain.user.entities.User;
+import com.deliveryinsider.domain.store.entities.Store;
+import com.deliveryinsider.domain.store.mappers.StoreMapper;
 import com.deliveryinsider.domain.user.responses.UserResponse;
 import com.deliveryinsider.global.errors.custom.DuplicatedRecordException;
 import com.deliveryinsider.global.errors.custom.NotRegisteredException;
+import com.deliveryinsider.global.errors.custom.BadRequestException;
 import com.deliveryinsider.global.security.cookie.CookieManager;
 import com.deliveryinsider.global.security.jwt.JwtConfig;
 import com.deliveryinsider.global.security.jwt.JwtProvider;
@@ -28,6 +33,7 @@ import com.deliveryinsider.global.security.jwt.JwtProvider;
 @RequiredArgsConstructor
 public class AuthService {
     private final AuthMapper authMapper;
+    private final StoreMapper storeMapper;
     private final PasswordEncoder passwordEncoder;
     private final JwtProvider jwtProvider;
     private final CookieManager cookieManager;
@@ -270,4 +276,78 @@ public class AuthService {
                 .build();
     }
    
+
+    /**
+     * 로그인한 회원의 1차 내 정보 화면 데이터를 조회한다.
+     * 1차 범위에서는 users.email과 연결 매장명만 사용한다.
+     */
+    @Transactional(readOnly = true)
+    public AuthMeResponse findMe(Long userId) {
+        User user = authMapper.findById(userId);
+
+        if (user == null) {
+            throw new NotRegisteredException(
+                    "존재하지 않는 회원입니다."
+            );
+        }
+
+        Store store = storeMapper.findByUserId(userId);
+
+        return new AuthMeResponse(
+                user.getId(),
+                user.getEmail(),
+                store == null ? null : store.getId(),
+                store == null ? null : store.getStoreName(),
+                user.getCreatedAt()
+        );
+    }
+
+    /**
+     * 로그인한 회원의 이메일을 수정한다.
+     * 이름, 권한, 비밀번호 변경, 회원탈퇴는 2차 범위로 남긴다.
+     */
+    @Transactional(rollbackFor = Exception.class)
+    public AuthMeResponse updateEmail(
+            Long userId,
+            AuthEmailUpdateRequest request
+    ) {
+        User user = authMapper.findById(userId);
+
+        if (user == null) {
+            throw new NotRegisteredException(
+                    "존재하지 않는 회원입니다."
+            );
+        }
+
+        String newEmail = request.email().trim();
+
+        if (newEmail.equals(user.getEmail())) {
+            return findMe(userId);
+        }
+
+        int duplicatedCount = authMapper.countByEmailExceptId(
+                newEmail,
+                userId
+        );
+
+        if (duplicatedCount > 0) {
+            throw new DuplicatedRecordException(
+                    "이미 사용중인 이메일입니다."
+            );
+        }
+
+        int result = authMapper.updateEmail(
+                userId,
+                newEmail
+        );
+
+        if (result != 1) {
+            throw new BadRequestException(
+                    "이메일 수정에 실패했습니다."
+            );
+        }
+
+        return findMe(userId);
+    }
+
 }
