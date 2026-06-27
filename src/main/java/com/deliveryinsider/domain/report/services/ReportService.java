@@ -557,7 +557,10 @@ public class ReportService {
      * startDate=2026-06-27, endDate=2026-06-27
      * → 2026-06-27 18:00 이상, 2026-06-28 02:00 미만
      * openTime과 closeTime이 같으면 24시간 영업으로 보고
-     * 하루 단위 범위로 계산한다.
+     * 오픈 시간부터 다음날 같은 오픈 시간까지 계산한다.
+     * 예) 11:29 ~ 11:29 설정
+     * startDate=2026-06-27, endDate=2026-06-27
+     * → 2026-06-27 11:29 이상, 2026-06-28 11:29 미만
      */
     private ReportSearchRequest toBusinessDaySearchRequest(
         Store store,
@@ -618,7 +621,8 @@ public class ReportService {
         if (isAllDayBusiness(openTime, closeTime)) {
             return createAllDayBusinessRange(
                 resolvedStartDate,
-                resolvedEndDate
+                resolvedEndDate,
+                openTime
             );
         }
 
@@ -655,15 +659,8 @@ public class ReportService {
         LocalDate today = LocalDate.now();
         LocalTime nowTime = LocalTime.now();
 
-        if (isAllDayBusiness(openTime, closeTime)) {
-            return createAllDayBusinessRange(
-                today,
-                today
-            );
-        }
-
         boolean isOvernightBusiness =
-            closeTime.isBefore(openTime);
+            !closeTime.isAfter(openTime);
 
         if (!isOvernightBusiness) {
             return new BusinessDayRange(
@@ -694,11 +691,12 @@ public class ReportService {
 
     private BusinessDayRange createAllDayBusinessRange(
         LocalDate startDate,
-        LocalDate endDate
+        LocalDate endDate,
+        LocalTime openTime
     ) {
         return new BusinessDayRange(
-            LocalDateTime.of(startDate, LocalTime.MIN),
-            LocalDateTime.of(endDate.plusDays(1), LocalTime.MIN)
+            LocalDateTime.of(startDate, openTime),
+            LocalDateTime.of(endDate.plusDays(1), openTime)
         );
     }
 
