@@ -221,35 +221,44 @@ public class MockOrderService {
                         platformSetting.getPlatformSupportAmount()
                 );
 
-        int netProfit =
-                totalAmount
-                        - commissionAmount
-                        - couponCost
-                        - deliveryFee
-                        - totalMenuCost
-                        - totalPackagingFee
-                        + platformSupportAmount;
+        int netProfit = calculateNetProfit(
+                totalAmount,
+                commissionAmount,
+                couponCost,
+                deliveryFee,
+                totalMenuCost,
+                totalPackagingFee,
+                platformSupportAmount
+        );
+
         /*
          * LOSS 시나리오는 프론트/대시보드에서 손실 위험을 확인하기 위한 주문이다.
-         * 실제 메뉴·플랫폼 조합만으로 손실이 나지 않을 수도 있으므로,
-         * Mock 주문에서는 쿠폰 부담금을 추가해 netProfit이 0 이하가 되도록 보정한다.
+         * 기존에는 netProfit이 0 이하가 될 때까지 쿠폰 부담금을 크게 올렸기 때문에
+         * 현실성이 떨어지는 Mock 주문이 생성될 수 있었다.
+         *
+         * 1차 기준에서는 쿠폰 부담을 주문금액의 최대 30%까지만 허용한다.
+         * 30% 안에서 손실이 나면 손실 주문으로 보이고,
+         * 그래도 손실이 나지 않으면 낮은 순수익 주문으로 남겨
+         * 실제 운영에 가까운 프로모션 부담 사례로 사용한다.
          */
         if (actualScenario == MockOrderScenario.LOSS
             && netProfit > 0) {
 
-            int additionalCouponCost =
-                netProfit + randomInt(500, 2000);
+            couponCost = calculateLossScenarioCouponCost(
+                    totalAmount,
+                    couponCost,
+                    netProfit
+            );
 
-            couponCost += additionalCouponCost;
-
-            netProfit =
-                totalAmount
-                    - commissionAmount
-                    - couponCost
-                    - deliveryFee
-                    - totalMenuCost
-                    - totalPackagingFee
-                    + platformSupportAmount;
+            netProfit = calculateNetProfit(
+                    totalAmount,
+                    commissionAmount,
+                    couponCost,
+                    deliveryFee,
+                    totalMenuCost,
+                    totalPackagingFee,
+                    platformSupportAmount
+            );
         }
 
         /*
@@ -395,11 +404,11 @@ public class MockOrderService {
 
             case LOSS -> OrderRequest.builder()
                 .orderId(orderId)
-                .requestText("리뷰 쓸테니 소스랑 사이드 서비스 많이 주세요.")
-                .riskType("EXCESSIVE")
+                .requestText("프로모션 쿠폰 적용 주문입니다. 제공 비용과 예상 순수익을 확인해 주세요.")
+                .riskType("LOSS")
                 .riskLevel("CAUTION")
-                .detectedKeywords("리뷰,서비스 많이,소스,사이드")
-                .analysisMessage("과도 요청과 손실 위험이 있는 주문입니다. 제공 기준과 예상 순수익을 확인해 주세요.")
+                .detectedKeywords("프로모션,쿠폰,예상 순수익")
+                .analysisMessage("쿠폰·프로모션 부담으로 순수익이 낮아질 수 있는 주문입니다. 주문 단위 예상 순수익을 확인해 주세요.")
                 .build();
         };
     }
@@ -741,21 +750,18 @@ public class MockOrderService {
    
     /**
      * 손실 위험 주문
-     * 원가나 포장비가 높은 메뉴를 우선 선택한다.
-     * 이후 createOneOrder에서 쿠폰 부담금을 보정해
-     * netProfit이 0 이하가 되도록 만든다.
+     * 단순히 비싼 메뉴가 아니라 단품 수익률이 낮은 메뉴를 우선 선택한다.
+     * 이후 createOneOrder에서 쿠폰 부담금을 현실적인 범위 안에서만 보정한다.
      */
     private List<MenuQuantity> selectLossMenus(
         List<Menu> menus
     ) {
         Menu lossMenu = menus.stream()
-            .max(
-                Comparator.<Menu>comparingInt(
-                    menu ->
-                        menu.getMenuCost()
-                            + menu.getPackagingFee()
-                ).thenComparingInt(
-                    Menu::getExpectedCookingTime
+            .min(
+                Comparator.<Menu>comparingDouble(
+                    this::calculateMenuProfitRate
+                ).thenComparing(
+                    Comparator.comparingInt(Menu::getMenuPrice).reversed()
                 )
             )
             .orElseThrow();
@@ -763,7 +769,7 @@ public class MockOrderService {
         return List.of(
             new MenuQuantity(
                 lossMenu,
-                randomInt(1, 3)
+                randomInt(2, 4)
             )
         );
     }
@@ -891,6 +897,78 @@ public class MockOrderService {
         MockOrderScenario requestedScenario
     ) {
         return requestedScenario;
+    }
+
+    /**
+     * 주문 단위 예상 순수익 계산
+     */
+    private int calculateNetProfit(
+            int totalAmount,
+            int commissionAmount,
+            int couponCost,
+            int deliveryFee,
+            int totalMenuCost,
+            int totalPackagingFee,
+            int platformSupportAmount
+    ) {
+        return totalAmount
+                - commissionAmount
+                - couponCost
+                - deliveryFee
+                - totalMenuCost
+                - totalPackagingFee
+                + platformSupportAmount;
+    }
+
+    /**
+     * 손실 위험 Mock 주문의 쿠폰 부담금 보정
+     * 쿠폰이 비현실적으로 커지지 않도록 주문금액의 30%를 상한으로 둔다.
+     */
+    private int calculateLossScenarioCouponCost(
+            int totalAmount,
+            int currentCouponCost,
+            int currentNetProfit
+    ) {
+        int couponLimit = calculateLossCouponLimit(totalAmount);
+        int targetCouponCost = currentCouponCost
+                + currentNetProfit
+                + randomInt(500, 1500);
+
+        return Math.min(targetCouponCost, couponLimit);
+    }
+
+    /**
+     * 주문금액 기준 쿠폰 부담 상한
+     * 1차 MVP에서는 최대 30%로 제한한다.
+     */
+    private int calculateLossCouponLimit(int totalAmount) {
+        if (totalAmount <= 0) {
+            return 0;
+        }
+
+        return BigDecimal.valueOf(totalAmount)
+                .multiply(BigDecimal.valueOf(30))
+                .divide(
+                        BigDecimal.valueOf(100),
+                        0,
+                        RoundingMode.CEILING
+                )
+                .intValue();
+    }
+
+    /**
+     * 메뉴 단품 기준 예상 수익률
+     */
+    private double calculateMenuProfitRate(Menu menu) {
+        if (menu.getMenuPrice() <= 0) {
+            return 0.0;
+        }
+
+        int unitProfit = menu.getMenuPrice()
+                - menu.getMenuCost()
+                - menu.getPackagingFee();
+
+        return (double) unitProfit / menu.getMenuPrice();
     }
 
     /**
