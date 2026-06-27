@@ -160,7 +160,8 @@ public class MockOrderService {
             List<PlatformSetting> platformSettings,
             MockOrderScenario requestedScenario
     ) {
-        // MIXED라면 주문마다 실제 시나리오를 다시 선택
+        // 요청 시나리오를 실제 생성 시나리오로 변환한다.
+        // MIXED는 하나의 주문 안에 요청사항을 2개 이상 합치는 전용 시나리오다.
         MockOrderScenario actualScenario =
                 resolveActualScenario(requestedScenario);
 
@@ -336,7 +337,7 @@ public class MockOrderService {
         Long orderId
     ) {
         return switch (scenario) {
-            case NORMAL, MIXED, PEAK_SET -> OrderRequest.builder()
+            case NORMAL, PEAK_SET -> OrderRequest.builder()
                 .orderId(orderId)
                 .requestText("수저는 1개만 넣어주세요.")
                 .riskType("NORMAL")
@@ -344,6 +345,8 @@ public class MockOrderService {
                 .detectedKeywords("")
                 .analysisMessage("일반 요청사항입니다.")
                 .build();
+
+            case MIXED -> createMixedOrderRequest(orderId);
 
             case REQUEST_RISK -> OrderRequest.builder()
                 .orderId(orderId)
@@ -399,6 +402,101 @@ public class MockOrderService {
                 .analysisMessage("과도 요청과 손실 위험이 있는 주문입니다. 제공 기준과 예상 순수익을 확인해 주세요.")
                 .build();
         };
+    }
+
+    /**
+     * 랜덤 혼합 요청사항 생성
+     * 일반 주문으로 빠지지 않고, 요청사항 이슈 2개 이상을 한 주문에 합친다.
+     */
+    private OrderRequest createMixedOrderRequest(Long orderId) {
+        List<RequestIssue> issues = new ArrayList<>(List.of(
+            new RequestIssue(
+                "ALLERGY",
+                "DANGER",
+                "알러지",
+                "땅콩 알러지가 있습니다. 견과류는 절대 빼주세요.",
+                "땅콩,알러지,견과류",
+                1
+            ),
+            new RequestIssue(
+                "DISPUTE",
+                "WARNING",
+                "분쟁 가능",
+                "늦으면 취소할게요. 시간 맞춰서 보내주세요.",
+                "늦으면,취소,시간",
+                2
+            ),
+            new RequestIssue(
+                "EXCESSIVE",
+                "WARNING",
+                "과도 요청",
+                "리뷰 쓸테니 소스랑 사이드 서비스 많이 주세요.",
+                "리뷰,서비스 많이,소스,사이드",
+                3
+            ),
+            new RequestIssue(
+                "GROUP",
+                "CAUTION",
+                "배달사항 확인",
+                "회사 회의용입니다. 시간 맞춰서 부탁드립니다.",
+                "회사,회의,시간",
+                4
+            ),
+            new RequestIssue(
+                "REQUEST_RISK",
+                "WARNING",
+                "요청사항 확인",
+                "수저는 넉넉히 넣어주시고 요청사항 꼭 확인해 주세요.",
+                "수저,요청사항,확인",
+                5
+            )
+        ));
+
+        Collections.shuffle(issues);
+
+        int issueCount = randomInt(2, 3);
+        List<RequestIssue> selectedIssues = issues.subList(0, issueCount);
+
+        RequestIssue primaryIssue = selectedIssues.stream()
+            .min(Comparator.comparingInt(RequestIssue::priority))
+            .orElse(selectedIssues.get(0));
+
+        String requestText = String.join(
+            " ",
+            selectedIssues.stream()
+                .map(RequestIssue::requestText)
+                .toList()
+        );
+
+        String detectedKeywords = String.join(
+            ",",
+            selectedIssues.stream()
+                .map(RequestIssue::detectedKeywords)
+                .toList()
+        );
+
+        String issueSummary = String.join(
+            " + ",
+            selectedIssues.stream()
+                .map(RequestIssue::label)
+                .toList()
+        );
+
+        String riskLevel = selectedIssues.stream()
+            .anyMatch(issue -> "DANGER".equals(issue.riskLevel()))
+                ? "DANGER"
+                : "WARNING";
+
+        return OrderRequest.builder()
+            .orderId(orderId)
+            .requestText(requestText)
+            .riskType(primaryIssue.riskType())
+            .riskLevel(riskLevel)
+            .detectedKeywords(detectedKeywords)
+            .analysisMessage(
+                "여러 요청사항(" + issueSummary + ")이 함께 포함된 주문입니다. 접수 전 반드시 확인해 주세요."
+            )
+            .build();
     }
 
     /**
@@ -577,9 +675,11 @@ public class MockOrderService {
             case LOSS ->
                 selectLossMenus(menus);
 
-            case MIXED,
-                 PEAK_SET ->
-                // createScenarioPlan 또는 resolveActualScenario에서 실제 시나리오로 변환되므로 예비 처리
+            case MIXED ->
+                selectMixedMenus(menus);
+
+            case PEAK_SET ->
+                // createScenarioPlan에서 실제 시나리오로 변환되므로 예비 처리
                 selectNormalMenus(menus);
         };
     }
@@ -607,6 +707,36 @@ public class MockOrderService {
                         )
                 )
                 .toList();
+    }
+
+    /**
+     * 랜덤 혼합 주문
+     * 요청사항이 2개 이상 섞인 상황을 보여주기 위해 메뉴도 2종 이상 선택한다.
+     */
+    private List<MenuQuantity> selectMixedMenus(
+            List<Menu> menus
+    ) {
+        List<MenuQuantity> result = new ArrayList<>(selectNormalMenus(menus));
+
+        if (menus.size() <= 1 || result.size() >= 2) {
+            return result;
+        }
+
+        Long selectedMenuId = result.get(0).menu().getId();
+
+        Menu additionalMenu = menus.stream()
+            .filter(menu -> !menu.getId().equals(selectedMenuId))
+            .findAny()
+            .orElse(result.get(0).menu());
+
+        result.add(
+            new MenuQuantity(
+                additionalMenu,
+                randomInt(1, 2)
+            )
+        );
+
+        return result;
     }
    
     /**
@@ -753,42 +883,14 @@ public class MockOrderService {
     }
 
     /**
-     * MIXED 요청을 실제 주문별 시나리오로 변환
+     * 요청받은 시나리오를 실제 생성 시나리오로 변환한다.
+     * MIXED는 일반 주문 중 랜덤 선택이 아니라,
+     * 여러 요청사항을 한 주문에 합치는 전용 시나리오로 유지한다.
      */
     private MockOrderScenario resolveActualScenario(
         MockOrderScenario requestedScenario
     ) {
-        if (requestedScenario != MockOrderScenario.MIXED) {
-            return requestedScenario;
-        }
-
-        int randomValue = randomInt(1, 100);
-
-        if (randomValue <= 40) {
-            return MockOrderScenario.NORMAL;
-        }
-
-        if (randomValue <= 55) {
-            return MockOrderScenario.REQUEST_RISK;
-        }
-
-        if (randomValue <= 68) {
-            return MockOrderScenario.ALLERGY;
-        }
-
-        if (randomValue <= 80) {
-            return MockOrderScenario.GROUP;
-        }
-
-        if (randomValue <= 90) {
-            return MockOrderScenario.PREMIUM;
-        }
-
-        if (randomValue <= 96) {
-            return MockOrderScenario.DELAY_TEST;
-        }
-
-        return MockOrderScenario.LOSS;
+        return requestedScenario;
     }
 
     /**
@@ -879,6 +981,19 @@ public class MockOrderService {
     private record MenuQuantity(
             Menu menu,
             int quantity
+    ) {
+    }
+
+    /**
+     * 랜덤 혼합 요청사항 생성을 위한 내부 객체
+     */
+    private record RequestIssue(
+            String riskType,
+            String riskLevel,
+            String label,
+            String requestText,
+            String detectedKeywords,
+            int priority
     ) {
     }
     /**
