@@ -594,41 +594,41 @@
 
         SET order_status = #{nextStatus},
 
-        cooking_started_at =
-        CASE
-        WHEN #{nextStatus} = 'COOKING'
-        AND cooking_started_at IS NULL
-        THEN NOW()
-        ELSE cooking_started_at
-        END,
+            cooking_started_at =
+            CASE
+                WHEN #{nextStatus} = 'COOKING'
+                AND cooking_started_at IS NULL
+                THEN NOW()
+            ELSE cooking_started_at
+            END,
 
         completed_at =
-        CASE
-        WHEN #{nextStatus} = 'COMPLETED'
-        THEN NOW()
-        ELSE completed_at
-        END,
+            CASE
+                WHEN #{nextStatus} = 'COMPLETED'
+                THEN NOW()
+                ELSE completed_at
+            END,
 
         canceled_at =
-        CASE
-        WHEN #{nextStatus} = 'CANCELED'
-        THEN NOW()
-        ELSE canceled_at
-        END,
+            CASE
+                WHEN #{nextStatus} = 'CANCELED'
+                THEN NOW()
+                ELSE canceled_at
+            END,
 
         refunded_at =
-        CASE
-        WHEN #{nextStatus} = 'REFUNDED'
-        THEN NOW()
-        ELSE refunded_at
-        END,
+            CASE
+                WHEN #{nextStatus} = 'REFUNDED'
+                THEN NOW()
+                ELSE refunded_at
+            END,
 
-        updated_at = NOW()
+            updated_at = NOW()
 
         WHERE id = #{id}
-        AND store_id = #{storeId}
-        AND order_status = #{currentStatus}
-        AND deleted_at IS NULL
+            AND store_id = #{storeId}
+            AND order_status = #{currentStatus}
+            AND deleted_at IS NULL
 
     </update>
     <!-- 로그인 사용자의 매장에 속한 주문 전체 삭제 -->
