@@ -80,6 +80,11 @@ public class OrderService {
      * 통합 주문 관리 화면 전용 API에서 사용한다.
      * 기존 /api/orders는 전체 주문 조회로 유지하고,
      * 이 메서드는 오늘 들어온 주문만 조회한다.
+     */
+    /**
+     * 오늘 주문 목록 조회
+     *
+     * 통합 주문 관리 화면 전용 API에서 사용한다.
      * "오늘"의 기준은 달력 날짜가 아니라 매장의 영업시간 기준이다.
      */
     @Transactional(readOnly = true)
