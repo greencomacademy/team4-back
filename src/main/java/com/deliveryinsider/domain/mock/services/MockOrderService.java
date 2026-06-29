@@ -944,32 +944,42 @@ public class MockOrderService {
      * 손실 위험 Mock 주문의 쿠폰 부담금 보정
      * 순수익을 무조건 음수로 만들기 위해 쿠폰을 키우지 않는다.
      * 주문금액의 15~30% 범위 안에서 프로모션 부담을 적용한다.
+     * 손실 위험 Mock 주문의 쿠폰 부담금 보정
+     * 1차 MVP에서는 실제 정산을 완전히 재현하기보다
+     * 쿠폰·프로모션 부담으로 예상 순수익이 낮아지는 상황을 보여준다.
+     * 주문금액이 큰 단체 주문에서 쿠폰 부담이 과도하게 커지지 않도록
+     * 5~12% 범위로 낮추고, 최대 15,000원까지만 적용한다.
      */
     private int calculateLossScenarioCouponCost(
-            int totalAmount,
-            int currentCouponCost
+        int totalAmount,
+        int currentCouponCost
     ) {
-        int couponMinimum = calculateLossCouponAmount(
-                totalAmount,
-                15
+        int couponMinimum = Math.min(
+            calculateLossCouponAmount(totalAmount, 5),
+            15000
         );
-        int couponLimit = calculateLossCouponAmount(
-                totalAmount,
-                30
+
+        int couponLimit = Math.min(
+            calculateLossCouponAmount(totalAmount, 12),
+            15000
         );
 
         if (couponLimit <= 0) {
             return 0;
         }
 
+        if (couponMinimum > couponLimit) {
+            couponMinimum = couponLimit;
+        }
+
         int promotionalCouponCost = randomInt(
-                couponMinimum,
-                couponLimit
+            couponMinimum,
+            couponLimit
         );
 
         return Math.min(
-                Math.max(currentCouponCost, promotionalCouponCost),
-                couponLimit
+            Math.max(currentCouponCost, promotionalCouponCost),
+            couponLimit
         );
     }
 
