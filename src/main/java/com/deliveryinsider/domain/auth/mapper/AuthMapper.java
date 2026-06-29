@@ -19,6 +19,16 @@ public interface AuthMapper {
 
     int deleteRefreshToken(Long id);
 
+    int countByEmailExceptId(
+            @Param("email") String email,
+            @Param("id") Long id
+    );
+
+    int updateEmail(
+            @Param("id") Long id,
+            @Param("email") String email
+    );
+
 //    회원 ID로 조회
     User findById(Long id);
 

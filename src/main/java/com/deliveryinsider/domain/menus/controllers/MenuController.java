@@ -2,9 +2,11 @@ package com.deliveryinsider.domain.menus.controllers;
 
 
 import com.deliveryinsider.domain.menus.requests.MenuCreateRequest;
+import com.deliveryinsider.domain.menus.requests.MenuLossDismissRequest;
 import com.deliveryinsider.domain.menus.requests.MenuUpdateRequest;
 import com.deliveryinsider.domain.menus.responses.MenuMarginAnalysisResponse;
 import com.deliveryinsider.domain.menus.responses.MenuResponse;
+import com.deliveryinsider.domain.menus.responses.MenuLossDismissalResponse;
 import com.deliveryinsider.domain.menus.services.MenuService;
 import com.deliveryinsider.global.responses.GlobalRes;
 import io.jsonwebtoken.Claims;
@@ -102,6 +104,80 @@ public class MenuController {
     }
 
 
+
+    /**
+     * 숨은 손실 메뉴 확인 완료 목록 조회
+     * GET /api/menus/loss-dismissals
+     */
+    @GetMapping("/loss-dismissals")
+    public ResponseEntity<GlobalRes<List<MenuLossDismissalResponse>>> findLossDismissals(
+            Authentication authentication
+    ) {
+        Long userId = extractUserId(authentication);
+
+        List<MenuLossDismissalResponse> result =
+                menuService.findActiveLossDismissals(userId);
+
+        return ResponseEntity.ok(
+                GlobalRes.<List<MenuLossDismissalResponse>>builder()
+                        .code("00")
+                        .message("숨은 손실 메뉴 확인 완료 목록 조회 성공")
+                        .data(result)
+                        .build()
+        );
+    }
+
+    /**
+     * 숨은 손실 메뉴 확인 완료 처리
+     * POST /api/menus/{menuId}/loss-dismissal
+     */
+    @PostMapping("/{menuId}/loss-dismissal")
+    public ResponseEntity<GlobalRes<MenuLossDismissalResponse>> dismissLossMenu(
+            Authentication authentication,
+            @PathVariable Long menuId,
+            @Valid @RequestBody(required = false) MenuLossDismissRequest dismissReq
+    ) {
+        Long userId = extractUserId(authentication);
+
+        MenuLossDismissalResponse result =
+                menuService.dismissLossMenu(
+                        userId,
+                        menuId,
+                        dismissReq
+                );
+
+        return ResponseEntity.ok(
+                GlobalRes.<MenuLossDismissalResponse>builder()
+                        .code("00")
+                        .message("숨은 손실 메뉴 확인 완료 처리 성공")
+                        .data(result)
+                        .build()
+        );
+    }
+
+    /**
+     * 숨은 손실 메뉴 다시 표시
+     * DELETE /api/menus/{menuId}/loss-dismissal
+     */
+    @DeleteMapping("/{menuId}/loss-dismissal")
+    public ResponseEntity<GlobalRes<Void>> restoreLossMenu(
+            Authentication authentication,
+            @PathVariable Long menuId
+    ) {
+        Long userId = extractUserId(authentication);
+
+        menuService.restoreLossMenu(
+                userId,
+                menuId
+        );
+
+        return ResponseEntity.ok(
+                GlobalRes.<Void>builder()
+                        .code("00")
+                        .message("숨은 손실 메뉴 다시 표시 성공")
+                        .build()
+        );
+    }
 
     /**
      * 메뉴 상세 조회

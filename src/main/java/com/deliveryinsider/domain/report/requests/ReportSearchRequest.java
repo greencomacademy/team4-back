@@ -5,6 +5,7 @@ import com.deliveryinsider.global.enums.PlatformType;
 import lombok.Builder;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 
 /**
  * 운영 리포트 검색 조건
@@ -23,7 +24,11 @@ public record ReportSearchRequest(
 
     String riskType,
 
-    String keyword
+    String keyword,
+
+    LocalDateTime businessStartAt,
+
+    LocalDateTime businessEndAt
 
 ) {
 }

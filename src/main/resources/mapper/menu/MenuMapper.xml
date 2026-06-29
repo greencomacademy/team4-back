@@ -43,6 +43,50 @@
 
     </resultMap>
 
+    <resultMap id="menuSalesQuantityProjectionResultMap"
+               type="com.deliveryinsider.domain.menus.projections.MenuSalesQuantityProjection">
+
+        <result property="menuId"
+                column="menu_id"/>
+
+        <result property="platformType"
+                column="platform_type"/>
+
+        <result property="salesQuantity"
+                column="sales_quantity"/>
+
+    </resultMap>
+
+
+    <resultMap id="menuLossDismissalResultMap"
+               type="com.deliveryinsider.domain.menus.entities.MenuLossDismissal">
+
+        <id property="id"
+            column="id"/>
+
+        <result property="storeId"
+                column="store_id"/>
+
+        <result property="menuId"
+                column="menu_id"/>
+
+        <result property="dismissedAt"
+                column="dismissed_at"/>
+
+        <result property="hideUntil"
+                column="hide_until"/>
+
+        <result property="restoredAt"
+                column="restored_at"/>
+
+        <result property="createdAt"
+                column="created_at"/>
+
+        <result property="updatedAt"
+                column="updated_at"/>
+
+    </resultMap>
+
 
     <!-- 메뉴 등록 -->
     <insert id="save"
@@ -97,6 +141,129 @@
         ORDER BY id DESC
 
     </select>
+
+
+    <!-- 완료 주문 기준 메뉴별 플랫폼 판매 수량 조회 -->
+    <select id="findSalesQuantityByStoreId"
+            resultMap="menuSalesQuantityProjectionResultMap">
+
+        SELECT
+            oi.menu_id AS menu_id,
+            o.platform_type AS platform_type,
+            COALESCE(SUM(oi.quantity), 0) AS sales_quantity
+
+        FROM order_items oi
+
+        INNER JOIN orders o
+        ON o.id = oi.order_id
+
+        INNER JOIN menus m
+        ON m.id = oi.menu_id
+
+        WHERE o.store_id = #{storeId}
+          AND m.store_id = #{storeId}
+          AND o.deleted_at IS NULL
+          AND m.deleted_at IS NULL
+          AND o.order_status = 'COMPLETED'
+
+        GROUP BY oi.menu_id, o.platform_type
+
+    </select>
+
+
+    <!-- 숨은 손실 메뉴 확인 완료 목록 조회 -->
+    <select id="findActiveLossDismissalsByStoreId"
+            resultMap="menuLossDismissalResultMap">
+
+        SELECT
+        id,
+        store_id,
+        menu_id,
+        dismissed_at,
+        hide_until,
+        restored_at,
+        created_at,
+        updated_at
+
+        FROM menu_loss_dismissals
+
+        WHERE store_id = #{storeId}
+        AND restored_at IS NULL
+        AND hide_until > NOW()
+
+        ORDER BY hide_until ASC, id DESC
+
+    </select>
+
+
+    <!-- 특정 메뉴 숨김 정보 조회 -->
+    <select id="findLossDismissalByStoreIdAndMenuId"
+            resultMap="menuLossDismissalResultMap">
+
+        SELECT
+        id,
+        store_id,
+        menu_id,
+        dismissed_at,
+        hide_until,
+        restored_at,
+        created_at,
+        updated_at
+
+        FROM menu_loss_dismissals
+
+        WHERE store_id = #{storeId}
+        AND menu_id = #{menuId}
+        AND restored_at IS NULL
+        AND hide_until > NOW()
+
+    </select>
+
+
+    <!-- 숨은 손실 메뉴 확인 완료 저장 또는 갱신 -->
+    <insert id="upsertLossDismissal"
+            parameterType="com.deliveryinsider.domain.menus.entities.MenuLossDismissal">
+
+        INSERT INTO menu_loss_dismissals (
+        store_id,
+        menu_id,
+        dismissed_at,
+        hide_until,
+        restored_at,
+        created_at,
+        updated_at
+        )
+        VALUES (
+        #{storeId},
+        #{menuId},
+        NOW(),
+        #{hideUntil},
+        NULL,
+        NOW(),
+        NOW()
+        )
+        ON DUPLICATE KEY UPDATE
+        dismissed_at = NOW(),
+        hide_until = VALUES(hide_until),
+        restored_at = NULL,
+        updated_at = NOW()
+
+    </insert>
+
+
+    <!-- 숨은 손실 메뉴 확인 완료 해제 -->
+    <update id="restoreLossDismissal">
+
+        UPDATE menu_loss_dismissals
+
+        SET restored_at = NOW(),
+        updated_at = NOW()
+
+        WHERE store_id = #{storeId}
+        AND menu_id = #{menuId}
+        AND restored_at IS NULL
+
+    </update>
 
 
     <!-- 특정 매장에 소속된 활성 메뉴 한 건 조회 -->

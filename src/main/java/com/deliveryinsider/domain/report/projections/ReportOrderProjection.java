@@ -36,6 +36,18 @@ public class ReportOrderProjection {
 
     private Integer totalAmount;
 
+    private Integer commissionAmount;
+
+    private Integer deliveryFee;
+
+    private Integer couponCost;
+
+    private Integer platformSupportAmount;
+
+    private Integer totalMenuCost;
+
+    private Integer totalPackagingFee;
+
     private Integer netProfit;
 
     private LocalDateTime orderedAt;
@@ -43,6 +55,10 @@ public class ReportOrderProjection {
     private LocalDateTime cookingStartedAt;
 
     private LocalDateTime canceledAt;
+
+    private LocalDateTime completedAt;
+
+    private LocalDateTime refundedAt;
 
     private String requestText;
 
@@ -55,4 +71,8 @@ public class ReportOrderProjection {
     private String cancelType;
 
     private String cancelReason;
+
+    private String refundType;
+
+    private String refundReason;
 }

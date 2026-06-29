@@ -160,7 +160,8 @@ public class MockOrderService {
             List<PlatformSetting> platformSettings,
             MockOrderScenario requestedScenario
     ) {
-        // MIXED라면 주문마다 실제 시나리오를 다시 선택
+        // 요청 시나리오를 실제 생성 시나리오로 변환한다.
+        // MIXED는 하나의 주문 안에 요청사항을 2개 이상 합치는 전용 시나리오다.
         MockOrderScenario actualScenario =
                 resolveActualScenario(requestedScenario);
 
@@ -171,6 +172,12 @@ public class MockOrderService {
         // 시나리오에 맞게 메뉴와 수량 선택
         List<MenuQuantity> selectedMenus =
                 selectMenus(menus, actualScenario);
+
+        // 매장 최소주문금액 이상이 되도록 Mock 주문 수량 보정
+        selectedMenus = ensureMinimumOrderAmount(
+                selectedMenus,
+                zeroIfNull(store.getMinimumOrderAmount())
+        );
 
         // 주문 당시 메뉴 스냅샷 생성
         List<OrderItem> orderItems =
@@ -214,35 +221,41 @@ public class MockOrderService {
                         platformSetting.getPlatformSupportAmount()
                 );
 
-        int netProfit =
-                totalAmount
-                        - commissionAmount
-                        - couponCost
-                        - deliveryFee
-                        - totalMenuCost
-                        - totalPackagingFee
-                        + platformSupportAmount;
+        int netProfit = calculateNetProfit(
+                totalAmount,
+                commissionAmount,
+                couponCost,
+                deliveryFee,
+                totalMenuCost,
+                totalPackagingFee,
+                platformSupportAmount
+        );
+
         /*
-         * LOSS 시나리오는 프론트/대시보드에서 손실 위험을 확인하기 위한 주문이다.
-         * 실제 메뉴·플랫폼 조합만으로 손실이 나지 않을 수도 있으므로,
-         * Mock 주문에서는 쿠폰 부담금을 추가해 netProfit이 0 이하가 되도록 보정한다.
+         * LOSS 시나리오는 메뉴 자체가 반드시 적자인 주문이 아니라,
+         * 쿠폰·프로모션 부담이 붙었을 때 주문 단위 순수익이 낮아지는 상황을
+         * 보여주기 위한 Mock 주문이다.
+         *
+         * 1차 기준에서는 쿠폰 부담을 주문금액의 15~30% 범위 안에서만 적용한다.
+         * 따라서 결과가 반드시 손실로 고정되지는 않고,
+         * 실제 계산 결과에 따라 손실 위험 또는 낮은 순수익 주문으로 보인다.
          */
-        if (actualScenario == MockOrderScenario.LOSS
-            && netProfit > 0) {
+        if (actualScenario == MockOrderScenario.LOSS) {
 
-            int additionalCouponCost =
-                netProfit + randomInt(500, 2000);
+            couponCost = calculateLossScenarioCouponCost(
+                    totalAmount,
+                    couponCost
+            );
 
-            couponCost += additionalCouponCost;
-
-            netProfit =
-                totalAmount
-                    - commissionAmount
-                    - couponCost
-                    - deliveryFee
-                    - totalMenuCost
-                    - totalPackagingFee
-                    + platformSupportAmount;
+            netProfit = calculateNetProfit(
+                    totalAmount,
+                    commissionAmount,
+                    couponCost,
+                    deliveryFee,
+                    totalMenuCost,
+                    totalPackagingFee,
+                    platformSupportAmount
+            );
         }
 
         /*
@@ -330,7 +343,7 @@ public class MockOrderService {
         Long orderId
     ) {
         return switch (scenario) {
-            case NORMAL, MIXED, PEAK_SET -> OrderRequest.builder()
+            case NORMAL, PEAK_SET -> OrderRequest.builder()
                 .orderId(orderId)
                 .requestText("수저는 1개만 넣어주세요.")
                 .riskType("NORMAL")
@@ -338,6 +351,8 @@ public class MockOrderService {
                 .detectedKeywords("")
                 .analysisMessage("일반 요청사항입니다.")
                 .build();
+
+            case MIXED -> createMixedOrderRequest(orderId);
 
             case REQUEST_RISK -> OrderRequest.builder()
                 .orderId(orderId)
@@ -386,13 +401,108 @@ public class MockOrderService {
 
             case LOSS -> OrderRequest.builder()
                 .orderId(orderId)
-                .requestText("리뷰 쓸테니 소스랑 사이드 서비스 많이 주세요.")
-                .riskType("EXCESSIVE")
+                .requestText("프로모션 쿠폰 적용 주문입니다. 제공 비용과 예상 순수익을 확인해 주세요.")
+                .riskType("LOSS")
                 .riskLevel("CAUTION")
-                .detectedKeywords("리뷰,서비스 많이,소스,사이드")
-                .analysisMessage("과도 요청과 손실 위험이 있는 주문입니다. 제공 기준과 예상 순수익을 확인해 주세요.")
+                .detectedKeywords("프로모션,쿠폰,예상 순수익")
+                .analysisMessage("쿠폰·프로모션 부담으로 순수익이 낮아질 수 있는 주문입니다. 주문 단위 예상 순수익을 확인해 주세요.")
                 .build();
         };
+    }
+
+    /**
+     * 랜덤 혼합 요청사항 생성
+     * 일반 주문으로 빠지지 않고, 요청사항 이슈 2개 이상을 한 주문에 합친다.
+     */
+    private OrderRequest createMixedOrderRequest(Long orderId) {
+        List<RequestIssue> issues = new ArrayList<>(List.of(
+            new RequestIssue(
+                "ALLERGY",
+                "DANGER",
+                "알러지",
+                "땅콩 알러지가 있습니다. 견과류는 절대 빼주세요.",
+                "땅콩,알러지,견과류",
+                1
+            ),
+            new RequestIssue(
+                "DISPUTE",
+                "WARNING",
+                "분쟁 가능",
+                "늦으면 취소할게요. 시간 맞춰서 보내주세요.",
+                "늦으면,취소,시간",
+                2
+            ),
+            new RequestIssue(
+                "EXCESSIVE",
+                "WARNING",
+                "과도 요청",
+                "리뷰 쓸테니 소스랑 사이드 서비스 많이 주세요.",
+                "리뷰,서비스 많이,소스,사이드",
+                3
+            ),
+            new RequestIssue(
+                "GROUP",
+                "CAUTION",
+                "배달사항 확인",
+                "회사 회의용입니다. 시간 맞춰서 부탁드립니다.",
+                "회사,회의,시간",
+                4
+            ),
+            new RequestIssue(
+                "REQUEST_RISK",
+                "WARNING",
+                "요청사항 확인",
+                "수저는 넉넉히 넣어주시고 요청사항 꼭 확인해 주세요.",
+                "수저,요청사항,확인",
+                5
+            )
+        ));
+
+        Collections.shuffle(issues);
+
+        int issueCount = randomInt(2, 3);
+        List<RequestIssue> selectedIssues = issues.subList(0, issueCount);
+
+        RequestIssue primaryIssue = selectedIssues.stream()
+            .min(Comparator.comparingInt(RequestIssue::priority))
+            .orElse(selectedIssues.get(0));
+
+        String requestText = String.join(
+            " ",
+            selectedIssues.stream()
+                .map(RequestIssue::requestText)
+                .toList()
+        );
+
+        String detectedKeywords = String.join(
+            ",",
+            selectedIssues.stream()
+                .map(RequestIssue::detectedKeywords)
+                .toList()
+        );
+
+        String issueSummary = String.join(
+            " + ",
+            selectedIssues.stream()
+                .map(RequestIssue::label)
+                .toList()
+        );
+
+        String riskLevel = selectedIssues.stream()
+            .anyMatch(issue -> "DANGER".equals(issue.riskLevel()))
+                ? "DANGER"
+                : "WARNING";
+
+        return OrderRequest.builder()
+            .orderId(orderId)
+            .requestText(requestText)
+            .riskType(primaryIssue.riskType())
+            .riskLevel(riskLevel)
+            .detectedKeywords(detectedKeywords)
+            .analysisMessage(
+                "여러 요청사항(" + issueSummary + ")이 함께 포함된 주문입니다. 접수 전 반드시 확인해 주세요."
+            )
+            .build();
     }
 
     /**
@@ -489,6 +599,63 @@ public class MockOrderService {
                 .build();
     }
 
+
+    /**
+     * Mock 주문 총액이 매장의 최소주문금액 이상이 되도록 수량을 보정한다.
+     * 발표용 Mock 데이터가 실제 배달 주문 조건과 맞지 않는 문제를 방지하기 위한 처리다.
+     */
+    private List<MenuQuantity> ensureMinimumOrderAmount(
+            List<MenuQuantity> selectedMenus,
+            int minimumOrderAmount
+    ) {
+        if (minimumOrderAmount <= 0 || selectedMenus.isEmpty()) {
+            return selectedMenus;
+        }
+
+        int currentAmount = selectedMenus.stream()
+                .mapToInt(menuQuantity ->
+                        menuQuantity.menu().getMenuPrice()
+                                * menuQuantity.quantity()
+                )
+                .sum();
+
+        if (currentAmount >= minimumOrderAmount) {
+            return selectedMenus;
+        }
+
+        int targetIndex = 0;
+
+        for (int i = 0; i < selectedMenus.size(); i++) {
+            if (selectedMenus.get(i).menu().getMenuPrice() > 0) {
+                targetIndex = i;
+                break;
+            }
+        }
+
+        MenuQuantity target = selectedMenus.get(targetIndex);
+        int menuPrice = target.menu().getMenuPrice();
+
+        if (menuPrice <= 0) {
+            return selectedMenus;
+        }
+
+        int lackAmount = minimumOrderAmount - currentAmount;
+        int additionalQuantity = (int) Math.ceil(
+                (double) lackAmount / menuPrice
+        );
+
+        List<MenuQuantity> adjustedMenus = new ArrayList<>(selectedMenus);
+        adjustedMenus.set(
+                targetIndex,
+                new MenuQuantity(
+                        target.menu(),
+                        target.quantity() + additionalQuantity
+                )
+        );
+
+        return adjustedMenus;
+    }
+
     /**
      * Mock 시나리오에 맞게 메뉴와 수량 선택
      */
@@ -514,9 +681,11 @@ public class MockOrderService {
             case LOSS ->
                 selectLossMenus(menus);
 
-            case MIXED,
-                 PEAK_SET ->
-                // createScenarioPlan 또는 resolveActualScenario에서 실제 시나리오로 변환되므로 예비 처리
+            case MIXED ->
+                selectMixedMenus(menus);
+
+            case PEAK_SET ->
+                // createScenarioPlan에서 실제 시나리오로 변환되므로 예비 처리
                 selectNormalMenus(menus);
         };
     }
@@ -545,24 +714,74 @@ public class MockOrderService {
                 )
                 .toList();
     }
+
+    /**
+     * 랜덤 혼합 주문
+     * 요청사항이 2개 이상 섞인 상황을 보여주기 위해 메뉴도 2종 이상 선택한다.
+     */
+    private List<MenuQuantity> selectMixedMenus(
+            List<Menu> menus
+    ) {
+        List<MenuQuantity> result = new ArrayList<>(selectNormalMenus(menus));
+
+        if (menus.size() <= 1 || result.size() >= 2) {
+            return result;
+        }
+
+        Long selectedMenuId = result.get(0).menu().getId();
+
+        Menu additionalMenu = menus.stream()
+            .filter(menu -> !menu.getId().equals(selectedMenuId))
+            .findAny()
+            .orElse(result.get(0).menu());
+
+        result.add(
+            new MenuQuantity(
+                additionalMenu,
+                randomInt(1, 2)
+            )
+        );
+
+        return result;
+    }
    
     /**
      * 손실 위험 주문
-     * 원가나 포장비가 높은 메뉴를 우선 선택한다.
-     * 이후 createOneOrder에서 쿠폰 부담금을 보정해
-     * netProfit이 0 이하가 되도록 만든다.
+     * 메뉴 자체가 이미 적자인 메뉴만 고르면
+     * “프로모션 부담 때문에 주문 단위 순수익이 낮아진다”는 시나리오가 흐려진다.
+     * 그래서 단품 기준 순수익이 양수이고,
+     * 예상 수익률이 너무 높지도 낮지도 않은 메뉴를 우선 선택한다.
      */
     private List<MenuQuantity> selectLossMenus(
         List<Menu> menus
     ) {
-        Menu lossMenu = menus.stream()
-            .max(
-                Comparator.<Menu>comparingInt(
-                    menu ->
-                        menu.getMenuCost()
-                            + menu.getPackagingFee()
-                ).thenComparingInt(
-                    Menu::getExpectedCookingTime
+        List<Menu> candidateMenus = menus.stream()
+            .filter(this::hasPositiveUnitProfit)
+            .filter(menu -> {
+                double profitRate = calculateMenuProfitRate(menu);
+                return profitRate >= 0.10 && profitRate <= 0.35;
+            })
+            .toList();
+
+        if (candidateMenus.isEmpty()) {
+            candidateMenus = menus.stream()
+                .filter(this::hasPositiveUnitProfit)
+                .toList();
+        }
+
+        if (candidateMenus.isEmpty()) {
+            candidateMenus = menus;
+        }
+
+        List<Menu> shuffledMenus = new ArrayList<>(candidateMenus);
+        Collections.shuffle(shuffledMenus);
+
+        Menu lossMenu = shuffledMenus.stream()
+            .min(
+                Comparator.<Menu>comparingDouble(menu ->
+                    Math.abs(calculateMenuProfitRate(menu) - 0.20)
+                ).thenComparing(
+                    Comparator.comparingInt(Menu::getMenuPrice).reversed()
                 )
             )
             .orElseThrow();
@@ -690,42 +909,115 @@ public class MockOrderService {
     }
 
     /**
-     * MIXED 요청을 실제 주문별 시나리오로 변환
+     * 요청받은 시나리오를 실제 생성 시나리오로 변환한다.
+     * MIXED는 일반 주문 중 랜덤 선택이 아니라,
+     * 여러 요청사항을 한 주문에 합치는 전용 시나리오로 유지한다.
      */
     private MockOrderScenario resolveActualScenario(
         MockOrderScenario requestedScenario
     ) {
-        if (requestedScenario != MockOrderScenario.MIXED) {
-            return requestedScenario;
+        return requestedScenario;
+    }
+
+    /**
+     * 주문 단위 예상 순수익 계산
+     */
+    private int calculateNetProfit(
+            int totalAmount,
+            int commissionAmount,
+            int couponCost,
+            int deliveryFee,
+            int totalMenuCost,
+            int totalPackagingFee,
+            int platformSupportAmount
+    ) {
+        return totalAmount
+                - commissionAmount
+                - couponCost
+                - deliveryFee
+                - totalMenuCost
+                - totalPackagingFee
+                + platformSupportAmount;
+    }
+
+    /**
+     * 손실 위험 Mock 주문의 쿠폰 부담금 보정
+     * 순수익을 무조건 음수로 만들기 위해 쿠폰을 키우지 않는다.
+     * 주문금액의 15~30% 범위 안에서 프로모션 부담을 적용한다.
+     */
+    private int calculateLossScenarioCouponCost(
+            int totalAmount,
+            int currentCouponCost
+    ) {
+        int couponMinimum = calculateLossCouponAmount(
+                totalAmount,
+                15
+        );
+        int couponLimit = calculateLossCouponAmount(
+                totalAmount,
+                30
+        );
+
+        if (couponLimit <= 0) {
+            return 0;
         }
 
-        int randomValue = randomInt(1, 100);
+        int promotionalCouponCost = randomInt(
+                couponMinimum,
+                couponLimit
+        );
 
-        if (randomValue <= 40) {
-            return MockOrderScenario.NORMAL;
+        return Math.min(
+                Math.max(currentCouponCost, promotionalCouponCost),
+                couponLimit
+        );
+    }
+
+    /**
+     * 주문금액 기준 쿠폰 부담금 계산
+     */
+    private int calculateLossCouponAmount(
+            int totalAmount,
+            int percent
+    ) {
+        if (totalAmount <= 0) {
+            return 0;
         }
 
-        if (randomValue <= 55) {
-            return MockOrderScenario.REQUEST_RISK;
+        return BigDecimal.valueOf(totalAmount)
+                .multiply(BigDecimal.valueOf(percent))
+                .divide(
+                        BigDecimal.valueOf(100),
+                        0,
+                        RoundingMode.CEILING
+                )
+                .intValue();
+    }
+
+    /**
+     * 메뉴 단품 기준 예상 수익률
+     */
+    private double calculateMenuProfitRate(Menu menu) {
+        if (menu.getMenuPrice() <= 0) {
+            return 0.0;
         }
 
-        if (randomValue <= 68) {
-            return MockOrderScenario.ALLERGY;
-        }
+        int unitProfit = menu.getMenuPrice()
+                - menu.getMenuCost()
+                - menu.getPackagingFee();
 
-        if (randomValue <= 80) {
-            return MockOrderScenario.GROUP;
-        }
+        return (double) unitProfit / menu.getMenuPrice();
+    }
 
-        if (randomValue <= 90) {
-            return MockOrderScenario.PREMIUM;
-        }
+    /**
+     * 단품 기준 순수익이 양수인지 확인
+     */
+    private boolean hasPositiveUnitProfit(Menu menu) {
+        int unitProfit = menu.getMenuPrice()
+                - menu.getMenuCost()
+                - menu.getPackagingFee();
 
-        if (randomValue <= 96) {
-            return MockOrderScenario.DELAY_TEST;
-        }
-
-        return MockOrderScenario.LOSS;
+        return unitProfit > 0;
     }
 
     /**
@@ -816,6 +1108,19 @@ public class MockOrderService {
     private record MenuQuantity(
             Menu menu,
             int quantity
+    ) {
+    }
+
+    /**
+     * 랜덤 혼합 요청사항 생성을 위한 내부 객체
+     */
+    private record RequestIssue(
+            String riskType,
+            String riskLevel,
+            String label,
+            String requestText,
+            String detectedKeywords,
+            int priority
     ) {
     }
     /**
