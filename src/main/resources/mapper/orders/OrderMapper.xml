@@ -632,11 +632,11 @@
 
     </update>
     <!-- 로그인 사용자의 매장에 속한 주문 전체 삭제 -->
-    <delete id="deleteMockOrdersStoreId">
-
-        DELETE FROM orders
+    <update id="deleteMockOrdersStoreId">
+        UPDATE orders
+        SET deleted_at = NOW()
         WHERE store_id = #{storeId}
         AND order_no LIKE 'ORD-MOCK-%'
-
-    </delete>
+        AND deleted_at IS NULL
+    </update>
 </mapper>
