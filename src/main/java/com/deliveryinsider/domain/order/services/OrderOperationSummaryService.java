@@ -1,0 +1,399 @@
+package com.deliveryinsider.domain.order.services;
+
+import com.deliveryinsider.domain.order.enums.DelayRiskLevel;
+import com.deliveryinsider.global.enums.KitchenLoadLevel;
+import com.deliveryinsider.domain.order.mapper.OrderMapper;
+import com.deliveryinsider.domain.order.projections.OrderOperationSummaryProjection;
+import com.deliveryinsider.domain.order.responses.CookingDelayResponse;
+import com.deliveryinsider.domain.order.responses.OrderOperationSummaryResponse;
+import com.deliveryinsider.domain.store.entities.Store;
+import com.deliveryinsider.domain.store.mappers.StoreMapper;
+import com.deliveryinsider.global.errors.custom.BadRequestException;
+import com.deliveryinsider.global.errors.custom.DeletedRecordException;
+import lombok.RequiredArgsConstructor;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.LocalTime;
+import java.util.List;
+
+@Service
+@RequiredArgsConstructor
+public class OrderOperationSummaryService {
+
+    private final StoreMapper storeMapper;
+    private final OrderMapper orderMapper;
+    private final DelayRiskService delayRiskService;
+    private record BusinessDayRange(
+        LocalDateTime startAt,
+        LocalDateTime endAt
+    ) {
+    }
+
+    /**
+     * 로그인 사용자의 현재 주문 운영 상태를 요약한다.
+     * 진행 주문 수, 상태별 주문 수, 예상 순수익,
+     * 지연 위험 건수와 주방 부하 단계를 한 번에 반환한다.
+     */
+    @Transactional(readOnly = true)
+    public OrderOperationSummaryResponse findOperationSummary(
+        Long userId
+    ) {
+        // 1. 로그인 사용자의 활성 매장 조회
+        Store store = getActiveStore(userId);
+
+        // 2. 주방 처리량 검증
+        int kitchenCapacity =
+            validateKitchenCapacity(
+                store.getKitchenCapacity()
+            );
+
+        // 3. 진행 주문의 상태별 개수와 예상 순수익 조회
+        BusinessDayRange businessDayRange =
+            calculateBusinessDayRange(store);
+
+        OrderOperationSummaryProjection projection =
+            orderMapper.findOperationSummary(
+                store.getId(),
+                businessDayRange.startAt(),
+                businessDayRange.endAt()
+            );
+
+        if (projection == null) {
+            throw new IllegalStateException(
+                "주문 운영 요약 집계 결과가 없습니다."
+            );
+        }
+
+        /*
+         * MyBatis 집계 결과를 null-safe 값으로 변환한다.
+         *
+         * COUNT와 COALESCE를 사용하므로 정상 SQL 결과는 0이지만,
+         * 비정상 매핑이나 테스트 Mock의 null 값도 방어한다.
+         */
+        long todayOrderCount =
+            getSafeLong(
+                projection.getTodayOrderCount()
+            );
+
+        long progressOrderCount =
+            getSafeLong(
+                projection.getProgressOrderCount()
+            );
+
+        long waitingCount =
+            getSafeLong(
+                projection.getWaitingCount()
+            );
+
+        long cookingCount =
+            getSafeLong(
+                projection.getCookingCount()
+            );
+
+        long deliveringCount =
+            getSafeLong(
+                projection.getDeliveringCount()
+            );
+
+        long completedCount =
+            getSafeLong(
+                projection.getCompletedCount()
+            );
+
+        long canceledCount =
+            getSafeLong(
+                projection.getCanceledCount()
+            );
+
+        long todaySales =
+            getSafeLong(
+                projection.getTodaySales()
+            );
+
+        long todayNetProfit =
+            getSafeLong(
+                projection.getTodayNetProfit()
+            );
+
+        long expectedProgressNetProfit =
+            getSafeLong(
+                projection.getExpectedProgressNetProfit()
+            );
+
+        long requestRiskCount =
+            getSafeLong(
+                projection.getRequestRiskCount()
+            );
+
+        long lossRiskCount =
+            getSafeLong(
+                projection.getLossRiskCount()
+            );
+
+        // 4. 현재 COOKING 주문들의 지연 위험 계산 결과 조회
+        List<CookingDelayResponse> delayRisks =
+            delayRiskService.findDelayRisks(userId);
+
+        // 5. WARNING과 DELAYED 주문만 지연 위험 건수에 포함
+        long delayRiskCount =
+            delayRisks.stream()
+                .filter(delay ->
+                    delay.delayRiskLevel()
+                        == DelayRiskLevel.WARNING
+                        || delay.delayRiskLevel()
+                        == DelayRiskLevel.DELAYED
+                )
+                .count();
+        Double cancelRate =
+            calculateCancelRate(
+                todayOrderCount,
+                canceledCount
+            );
+
+        Integer loadRate =
+            calculateLoadRate(
+                waitingCount,
+                cookingCount,
+                deliveringCount,
+                kitchenCapacity
+            );
+        // 6. COOKING 주문 수를 기준으로 현재 주방 부하 단계 계산
+        KitchenLoadLevel kitchenLoadLevel =
+            determineKitchenLoadLevel(loadRate);
+
+        // 7. 현재 운영 상태에 맞는 점주 안내 문구 생성
+        String message = createMessage(
+            kitchenLoadLevel,
+            delayRiskCount,
+            requestRiskCount,
+            lossRiskCount,
+            waitingCount
+        );
+
+        // 8. 최종 주문 운영 요약 응답 생성
+        return OrderOperationSummaryResponse.builder()
+            .todayOrderCount(todayOrderCount)
+            .progressOrderCount(progressOrderCount)
+            .waitingCount(waitingCount)
+            .cookingCount(cookingCount)
+            .deliveringCount(deliveringCount)
+            .completedCount(completedCount)
+            .canceledCount(canceledCount)
+            .todaySales(todaySales)
+            .todayNetProfit(todayNetProfit)
+            .cancelRate(cancelRate)
+            .delayRiskCount(delayRiskCount)
+            .requestRiskCount(requestRiskCount)
+            .lossRiskCount(lossRiskCount)
+            .expectedProgressNetProfit(
+                expectedProgressNetProfit
+            )
+            .kitchenCapacity(kitchenCapacity)
+            .loadRate(loadRate)
+            .kitchenLoadLevel(kitchenLoadLevel)
+            .message(message)
+            .build();
+    }
+    /**
+     * 매장 영업시간 기준 현재 영업일 범위를 계산한다.
+     * 예시 1)
+     * openTime 09:00, closeTime 22:00
+     * → 오늘 09:00 ~ 오늘 22:00
+     * 예시 2)
+     * openTime 18:00, closeTime 03:00
+     * → 현재 시간이 02:00이면 어제 18:00 ~ 오늘 03:00
+     * → 현재 시간이 19:00이면 오늘 18:00 ~ 내일 03:00
+     */
+    private BusinessDayRange calculateBusinessDayRange(
+        Store store
+    ) {
+        LocalTime openTime = store.getOpenTime();
+        LocalTime closeTime = store.getCloseTime();
+
+        if (openTime == null || closeTime == null) {
+            throw new BadRequestException(
+                "매장 영업시간이 설정되어 있지 않습니다."
+            );
+        }
+
+        LocalDate today = LocalDate.now();
+        LocalTime nowTime = LocalTime.now();
+
+        boolean isOvernightBusiness =
+            !closeTime.isAfter(openTime);
+
+        if (!isOvernightBusiness) {
+            return new BusinessDayRange(
+                LocalDateTime.of(today, openTime),
+                LocalDateTime.of(today, closeTime)
+            );
+        }
+
+        if (nowTime.isBefore(closeTime)) {
+            return new BusinessDayRange(
+                LocalDateTime.of(today.minusDays(1), openTime),
+                LocalDateTime.of(today, closeTime)
+            );
+        }
+
+        return new BusinessDayRange(
+            LocalDateTime.of(today, openTime),
+            LocalDateTime.of(today.plusDays(1), closeTime)
+        );
+    }
+
+    /**
+     * 로그인 사용자의 활성 매장을 조회한다.
+     */
+    private Store getActiveStore(Long userId) {
+        Store store =
+            storeMapper.findByUserId(userId);
+
+        if (store == null) {
+            throw new DeletedRecordException(
+                "등록된 활성 매장이 없습니다."
+            );
+        }
+
+        return store;
+    }
+
+    /**
+     * kitchenCapacity가 주방 부하 계산에 사용할 수 있는 값인지 검사한다.
+     */
+    private int validateKitchenCapacity(
+        Integer kitchenCapacity
+    ) {
+        if (
+            kitchenCapacity == null
+                || kitchenCapacity <= 0
+        ) {
+            throw new IllegalStateException(
+                "매장의 주방 처리량이 올바르지 않습니다."
+            );
+        }
+
+        return kitchenCapacity;
+    }
+
+    /**
+     * 부하율을 기준으로 주방 부하 단계를 계산한다.
+     */
+    private KitchenLoadLevel determineKitchenLoadLevel(
+        int loadRate
+    ) {
+        if (loadRate == 0) {
+            return KitchenLoadLevel.LOW;
+        }
+
+        if (loadRate <= 100) {
+            return KitchenLoadLevel.NORMAL;
+        }
+
+        if (loadRate <= 200) {
+            return KitchenLoadLevel.HIGH;
+        }
+
+        return KitchenLoadLevel.OVERLOAD;
+    }
+    /**
+     * 취소율 계산
+     */
+    private Double calculateCancelRate(
+        long todayOrderCount,
+        long canceledCount
+    ) {
+        if (todayOrderCount == 0) {
+            return 0.0;
+        }
+
+        double rawRate =
+            ((double) canceledCount / todayOrderCount) * 100;
+
+        return Math.round(rawRate * 10) / 10.0;
+    }
+    /**
+     * 현재 운영 부하율 계산
+     * WAITING은 곧 조리로 들어올 주문이라 0.5
+     * COOKING은 실제 주방을 쓰고 있으므로 1.0
+     * DELIVERING은 주방 부담이 거의 끝난 상태라 0.3으로 반영한다.
+     */
+    private Integer calculateLoadRate(
+        long waitingCount,
+        long cookingCount,
+        long deliveringCount,
+        int kitchenCapacity
+    ) {
+        double workload =
+            waitingCount * 0.5
+                + cookingCount
+                ;
+
+        int loadRate =
+            (int) Math.ceil(
+                (workload / kitchenCapacity) * 100
+            );
+
+        return Math.min(loadRate, 220);
+    }
+
+    /**
+     * 현재 주방 부하와 지연 위험 건수를 바탕으로
+     * 점주에게 보여줄 운영 안내 문구를 만든다.
+     * 현재 운영 상태에 맞는 점주 안내 문구를 만든다.
+     */
+    private String createMessage(
+        KitchenLoadLevel kitchenLoadLevel,
+        long delayRiskCount,
+        long requestRiskCount,
+        long lossRiskCount,
+        long waitingCount
+    ) {
+        if (delayRiskCount > 0) {
+            return "지연 위험 주문이 "
+                + delayRiskCount
+                + "건 있습니다. 조리중 주문을 우선 확인해 주세요.";
+        }
+
+        if (requestRiskCount > 0) {
+            return "요구사항 확인이 필요한 주문이 "
+                + requestRiskCount
+                + "건 있습니다. 알러지·분쟁 가능 요청을 먼저 확인해 주세요.";
+        }
+
+        if (lossRiskCount > 0) {
+            return "예상 순수익이 낮은 주문이 "
+                + lossRiskCount
+                + "건 있습니다. 쿠폰·배달비 부담을 확인해 주세요.";
+        }
+
+        return switch (kitchenLoadLevel) {
+            case LOW -> {
+                if (waitingCount > 0) {
+                    yield "현재 조리중 주문은 없습니다. 접수대기 주문을 확인해 주세요.";
+                }
+
+                yield "현재 진행할 조리 주문이 없어 주방에 여유가 있습니다.";
+            }
+
+            case NORMAL ->
+                "현재 주방 처리량 이내에서 정상적으로 운영 중입니다.";
+
+            case HIGH ->
+                "주방 처리량을 초과했습니다. 조리 순서와 신규 주문 접수를 확인해 주세요.";
+
+            case OVERLOAD ->
+                "주방 과부하 상태입니다. 조리중 주문을 우선 처리해 주세요.";
+        };
+    }
+
+    /**
+     * MyBatis 집계 결과가 null인 경우 0으로 변환한다.
+     */
+    private long getSafeLong(Long value) {
+        return value == null ? 0L : value;
+    }
+}

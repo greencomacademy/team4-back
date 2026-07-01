@@ -1,0 +1,133 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper
+    PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+    "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.deliveryinsider.domain.order.mapper.OrderItemMapper">
+
+    <resultMap id="orderItemResultMap"
+               type="com.deliveryinsider.domain.order.entities.OrderItem">
+
+        <id property="id"
+            column="id"/>
+
+        <result property="orderId"
+                column="order_id"/>
+
+        <result property="menuId"
+                column="menu_id"/>
+
+        <result property="quantity"
+                column="quantity"/>
+
+        <result property="orderedMenuName"
+                column="ordered_menu_name"/>
+
+        <result property="orderedMenuPrice"
+                column="ordered_menu_price"/>
+
+        <result property="orderedMenuCost"
+                column="ordered_menu_cost"/>
+
+        <result property="orderedPackagingFee"
+                column="ordered_packaging_fee"/>
+
+        <result property="orderedCookingTime"
+                column="ordered_cooking_time"/>
+
+        <result property="orderedBatchCapacity"
+                column="ordered_batch_capacity"/>
+
+        <result property="itemMenuAmount"
+                column="item_menu_amount"/>
+
+        <result property="itemMenuCost"
+                column="item_menu_cost"/>
+
+        <result property="itemPackagingAmount"
+                column="item_packaging_amount"/>
+
+        <result property="itemCookingTime"
+                column="item_cooking_time"/>
+
+        <result property="createdAt"
+                column="created_at"/>
+
+    </resultMap>
+
+
+    <!-- 주문에 포함된 메뉴 상세 일괄 저장 -->
+    <insert id="saveAll">
+
+        INSERT INTO order_items (
+        order_id,
+        menu_id,
+        quantity,
+        ordered_menu_name,
+        ordered_menu_price,
+        ordered_menu_cost,
+        ordered_packaging_fee,
+        ordered_cooking_time,
+        ordered_batch_capacity,
+        item_menu_amount,
+        item_menu_cost,
+        item_packaging_amount,
+        item_cooking_time
+        )
+        VALUES
+
+        <foreach collection="items"
+                 item="item"
+                 separator=",">
+
+            (
+            #{item.orderId},
+            #{item.menuId},
+            #{item.quantity},
+            #{item.orderedMenuName},
+            #{item.orderedMenuPrice},
+            #{item.orderedMenuCost},
+            #{item.orderedPackagingFee},
+            #{item.orderedCookingTime},
+            #{item.orderedBatchCapacity},
+            #{item.itemMenuAmount},
+            #{item.itemMenuCost},
+            #{item.itemPackagingAmount},
+            #{item.itemCookingTime}
+            )
+
+        </foreach>
+
+    </insert>
+
+
+    <!-- 주문 상세 메뉴 전체 조회 -->
+    <select id="findAllByOrderId"
+            resultMap="orderItemResultMap">
+
+        SELECT
+            id,
+            order_id,
+            menu_id,
+            quantity,
+            ordered_menu_name,
+            ordered_menu_price,
+            ordered_menu_cost,
+            ordered_packaging_fee,
+            ordered_cooking_time,
+            ordered_batch_capacity,
+            item_menu_amount,
+            item_menu_cost,
+            item_packaging_amount,
+            item_cooking_time,
+            created_at
+
+        FROM order_items
+
+        WHERE order_id = #{orderId}
+
+        ORDER BY id
+
+    </select>
+
+</mapper>

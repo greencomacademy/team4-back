@@ -1,0 +1,90 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper
+    PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+    "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.deliveryinsider.domain.order.mapper.OrderRefundMapper">
+
+    <resultMap id="orderRefundResultMap"
+               type="com.deliveryinsider.domain.order.entities.OrderRefund">
+
+        <id property="id"
+            column="id"/>
+
+        <result property="orderId"
+                column="order_id"/>
+
+        <result property="refundType"
+                column="refund_type"/>
+
+        <result property="refundReason"
+                column="refund_reason"/>
+
+        <result property="previousStatus"
+                column="previous_status"/>
+
+        <result property="refundedByType"
+                column="refunded_by_type"/>
+
+        <result property="refundedByUserId"
+                column="refunded_by_user_id"/>
+
+        <result property="refundedAt"
+                column="refunded_at"/>
+
+        <result property="createdAt"
+                column="created_at"/>
+
+        <result property="updatedAt"
+                column="updated_at"/>
+
+    </resultMap>
+
+    <insert id="save"
+            parameterType="com.deliveryinsider.domain.order.entities.OrderRefund"
+            useGeneratedKeys="true"
+            keyProperty="id">
+
+        INSERT INTO order_refunds (
+            order_id,
+            refund_type,
+            refund_reason,
+            previous_status,
+            refunded_by_type,
+            refunded_by_user_id,
+            refunded_at
+        )
+        VALUES (
+                   #{orderId},
+                   #{refundType},
+                   #{refundReason},
+                   #{previousStatus},
+                   #{refundedByType},
+                   #{refundedByUserId},
+                   NOW()
+               )
+
+    </insert>
+
+    <select id="findByOrderId"
+            resultMap="orderRefundResultMap">
+
+        SELECT
+            id,
+            order_id,
+            refund_type,
+            refund_reason,
+            previous_status,
+            refunded_by_type,
+            refunded_by_user_id,
+            refunded_at,
+            created_at,
+            updated_at
+
+        FROM order_refunds
+
+        WHERE order_id = #{orderId}
+
+    </select>
+
+</mapper>

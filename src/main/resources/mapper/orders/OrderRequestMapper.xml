@@ -1,0 +1,84 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper
+    PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+    "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.deliveryinsider.domain.order.mapper.OrderRequestMapper">
+
+    <resultMap id="orderRequestResultMap"
+               type="com.deliveryinsider.domain.order.entities.OrderRequest">
+
+        <id property="id"
+            column="id"/>
+
+        <result property="orderId"
+                column="order_id"/>
+
+        <result property="requestText"
+                column="request_text"/>
+
+        <result property="riskType"
+                column="risk_type"/>
+
+        <result property="riskLevel"
+                column="risk_level"/>
+
+        <result property="detectedKeywords"
+                column="detected_keywords"/>
+
+        <result property="analysisMessage"
+                column="analysis_message"/>
+
+        <result property="createdAt"
+                column="created_at"/>
+
+        <result property="updatedAt"
+                column="updated_at"/>
+
+    </resultMap>
+
+    <select id="findByOrderId"
+            resultMap="orderRequestResultMap">
+
+        SELECT
+            id,
+            order_id,
+            request_text,
+            risk_type,
+            risk_level,
+            detected_keywords,
+            analysis_message,
+            created_at,
+            updated_at
+
+        FROM order_requests
+
+        WHERE order_id = #{orderId}
+
+    </select>
+
+    <insert id="save"
+            parameterType="com.deliveryinsider.domain.order.entities.OrderRequest"
+            useGeneratedKeys="true"
+            keyProperty="id">
+
+        INSERT INTO order_requests (
+            order_id,
+            request_text,
+            risk_type,
+            risk_level,
+            detected_keywords,
+            analysis_message
+        )
+        VALUES (
+                   #{orderId},
+                   #{requestText},
+                   #{riskType},
+                   #{riskLevel},
+                   #{detectedKeywords},
+                   #{analysisMessage}
+               )
+
+    </insert>
+
+</mapper>
