@@ -28,7 +28,6 @@ import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.concurrent.ThreadLocalRandom;
-import java.util.Comparator;
 
 @Service
 @RequiredArgsConstructor
@@ -233,10 +232,11 @@ public class MockOrderService {
 
         /*
          * LOSS 시나리오는 메뉴 자체가 반드시 적자인 주문이 아니라,
-         * 쿠폰·프로모션 부담이 붙었을 때 주문 단위 순수익이 낮아지는 상황을
+         * 쿠폰·프로모션 부담이 붙었을 때 주문 단위 예상 순수익이 낮아지는 상황을
          * 보여주기 위한 Mock 주문이다.
          *
-         * 1차 기준에서는 쿠폰 부담을 주문금액의 15~30% 범위 안에서만 적용한다.
+         * 1차 기준에서는 주문금액이 큰 주문에서 쿠폰 부담이 과도하게 커지지 않도록
+         * 쿠폰 부담을 주문금액의 5~12% 범위, 최대 15,000원까지만 적용한다.
          * 따라서 결과가 반드시 손실로 고정되지는 않고,
          * 실제 계산 결과에 따라 손실 위험 또는 낮은 순수익 주문으로 보인다.
          */
@@ -401,11 +401,11 @@ public class MockOrderService {
 
             case LOSS -> OrderRequest.builder()
                 .orderId(orderId)
-                .requestText("프로모션 쿠폰 적용 주문입니다. 제공 비용과 예상 순수익을 확인해 주세요.")
+                .requestText("앱 쿠폰 적용됐는지 확인 부탁드립니다.")
                 .riskType("LOSS")
                 .riskLevel("CAUTION")
-                .detectedKeywords("프로모션,쿠폰,예상 순수익")
-                .analysisMessage("쿠폰·프로모션 부담으로 순수익이 낮아질 수 있는 주문입니다. 주문 단위 예상 순수익을 확인해 주세요.")
+                .detectedKeywords("프로모션,쿠폰")
+                .analysisMessage("쿠폰·프로모션 부담으로 예상 순수익이 낮아질 수 있는 주문입니다. 비용 스냅샷을 확인해 주세요.")
                 .build();
         };
     }
@@ -730,10 +730,15 @@ public class MockOrderService {
 
         Long selectedMenuId = result.get(0).menu().getId();
 
-        Menu additionalMenu = menus.stream()
+        List<Menu> remainingMenus = menus.stream()
             .filter(menu -> !menu.getId().equals(selectedMenuId))
-            .findAny()
-            .orElse(result.get(0).menu());
+            .toList();
+
+        if (remainingMenus.isEmpty()) {
+            return result;
+        }
+
+        Menu additionalMenu = randomElement(remainingMenus);
 
         result.add(
             new MenuQuantity(
@@ -744,13 +749,11 @@ public class MockOrderService {
 
         return result;
     }
-   
+    
     /**
      * 손실 위험 주문
-     * 메뉴 자체가 이미 적자인 메뉴만 고르면
-     * “프로모션 부담 때문에 주문 단위 순수익이 낮아진다”는 시나리오가 흐려진다.
-     * 그래서 단품 기준 순수익이 양수이고,
-     * 예상 수익률이 너무 높지도 낮지도 않은 메뉴를 우선 선택한다.
+     * 쿠폰/프로모션 부담으로 예상 순수익이 낮아지는 상황을 보여준다.
+     * 메뉴는 1~2종 랜덤으로 선택한다.
      */
     private List<MenuQuantity> selectLossMenus(
         List<Menu> menus
@@ -773,25 +776,24 @@ public class MockOrderService {
             candidateMenus = menus;
         }
 
-        List<Menu> shuffledMenus = new ArrayList<>(candidateMenus);
-        Collections.shuffle(shuffledMenus);
+        int menuCount = Math.min(
+            candidateMenus.size(),
+            randomInt(1, 2)
+        );
 
-        Menu lossMenu = shuffledMenus.stream()
-            .min(
-                Comparator.<Menu>comparingDouble(menu ->
-                    Math.abs(calculateMenuProfitRate(menu) - 0.20)
-                ).thenComparing(
-                    Comparator.comparingInt(Menu::getMenuPrice).reversed()
+        List<Menu> selectedMenus = selectDistinctMenus(
+            candidateMenus,
+            menuCount
+        );
+
+        return selectedMenus.stream()
+            .map(menu ->
+                new MenuQuantity(
+                    menu,
+                    randomInt(1, 3)
                 )
             )
-            .orElseThrow();
-
-        return List.of(
-            new MenuQuantity(
-                lossMenu,
-                randomInt(1, 3)
-            )
-        );
+            .toList();
     }
     
     /**
@@ -815,21 +817,24 @@ public class MockOrderService {
 
         // 일정 확률로 다른 메뉴도 함께 주문
         if (menus.size() > 1 && randomInt(0, 1) == 1) {
-            Menu additionalMenu = menus.stream()
+            List<Menu> remainingMenus = menus.stream()
                     .filter(menu ->
                             !menu.getId().equals(
                                     mainMenu.getId()
                             )
                     )
-                    .findAny()
-                    .orElse(mainMenu);
+                    .toList();
 
-            result.add(
-                    new MenuQuantity(
-                            additionalMenu,
-                            randomInt(2, 5)
-                    )
-            );
+            if (!remainingMenus.isEmpty()) {
+                Menu additionalMenu = randomElement(remainingMenus);
+
+                result.add(
+                        new MenuQuantity(
+                                additionalMenu,
+                                randomInt(2, 5)
+                        )
+                );
+            }
         }
 
         return result;
@@ -837,20 +842,34 @@ public class MockOrderService {
 
     /**
      * 프리미엄 주문
-     * 판매가가 높거나 조리시간이 긴 메뉴 선택
+     * 판매가가 높거나 조리시간이 긴 상위 후보군 중에서 랜덤 선택한다.
+     * 최고가 메뉴 1개만 고정 선택하면 Mock 주문 생성 때 같은 메뉴가 반복될 수 있다.
      */
     private List<MenuQuantity> selectPremiumMenus(
             List<Menu> menus
     ) {
-        Menu premiumMenu = menus.stream()
-                .max(
-                        Comparator
-                                .comparingInt(Menu::getMenuPrice)
-                                .thenComparingInt(
-                                        Menu::getExpectedCookingTime
-                                )
+        List<Menu> premiumCandidates = new ArrayList<>(menus);
+
+        premiumCandidates.sort(
+                Comparator
+                        .comparingInt(Menu::getMenuPrice)
+                        .thenComparingInt(
+                                Menu::getExpectedCookingTime
+                        )
+                        .reversed()
+        );
+
+        int candidateCount = Math.min(
+                premiumCandidates.size(),
+                3
+        );
+
+        Menu premiumMenu = randomElement(
+                premiumCandidates.subList(
+                        0,
+                        candidateCount
                 )
-                .orElseThrow();
+        );
 
         List<MenuQuantity> result =
                 new ArrayList<>();
@@ -863,21 +882,24 @@ public class MockOrderService {
         );
 
         if (menus.size() > 1 && randomInt(0, 1) == 1) {
-            Menu additionalMenu = menus.stream()
+            List<Menu> remainingMenus = menus.stream()
                     .filter(menu ->
                             !menu.getId().equals(
                                     premiumMenu.getId()
                             )
                     )
-                    .findAny()
-                    .orElse(premiumMenu);
+                    .toList();
 
-            result.add(
-                    new MenuQuantity(
-                            additionalMenu,
-                            randomInt(1, 2)
-                    )
-            );
+            if (!remainingMenus.isEmpty()) {
+                Menu additionalMenu = randomElement(remainingMenus);
+
+                result.add(
+                        new MenuQuantity(
+                                additionalMenu,
+                                randomInt(1, 2)
+                        )
+                );
+            }
         }
 
         return result;
@@ -886,26 +908,65 @@ public class MockOrderService {
     /**
      * 지연 테스트 주문
      * 생성 상태는 WAITING이지만,
-     * 조리시간이 긴 메뉴와 많은 수량을 선택한다.
+     * 조리시간이 긴 상위 후보군 중에서 랜덤 선택하고 수량을 크게 잡는다.
      * 이후 COOKING으로 변경하면 지연 테스트에 사용 가능하다.
      */
     private List<MenuQuantity> selectDelayTestMenus(
             List<Menu> menus
     ) {
-        Menu slowMenu = menus.stream()
-                .max(
-                        Comparator.comparingInt(
-                                Menu::getExpectedCookingTime
-                        )
-                )
-                .orElseThrow();
+        List<Menu> slowCandidates = new ArrayList<>(menus);
 
-        return List.of(
+        slowCandidates.sort(
+                Comparator
+                        .comparingInt(Menu::getExpectedCookingTime)
+                        .thenComparingInt(Menu::getMenuPrice)
+                        .reversed()
+        );
+
+        int candidateCount = Math.min(
+                slowCandidates.size(),
+                3
+        );
+
+        Menu slowMenu = randomElement(
+                slowCandidates.subList(
+                        0,
+                        candidateCount
+                )
+        );
+
+        List<MenuQuantity> result = new ArrayList<>();
+
+        result.add(
                 new MenuQuantity(
                         slowMenu,
                         randomInt(5, 10)
                 )
         );
+
+        // 일정 확률로 다른 메뉴를 추가해 같은 메뉴만 반복되는 느낌을 줄인다.
+        if (menus.size() > 1 && randomInt(0, 1) == 1) {
+            List<Menu> remainingMenus = menus.stream()
+                    .filter(menu ->
+                            !menu.getId().equals(
+                                    slowMenu.getId()
+                            )
+                    )
+                    .toList();
+
+            if (!remainingMenus.isEmpty()) {
+                Menu additionalMenu = randomElement(remainingMenus);
+
+                result.add(
+                        new MenuQuantity(
+                                additionalMenu,
+                                randomInt(1, 3)
+                        )
+                );
+            }
+        }
+
+        return result;
     }
 
     /**
@@ -942,34 +1003,42 @@ public class MockOrderService {
 
     /**
      * 손실 위험 Mock 주문의 쿠폰 부담금 보정
-     * 순수익을 무조건 음수로 만들기 위해 쿠폰을 키우지 않는다.
-     * 주문금액의 15~30% 범위 안에서 프로모션 부담을 적용한다.
+     * 순수익을 무조건 음수로 만들기 위해 쿠폰을 과도하게 키우지 않는다.
+     * 1차 MVP에서는 실제 정산을 완전히 재현하기보다
+     * 쿠폰·프로모션 부담으로 예상 순수익이 낮아지는 상황을 보여준다.
+     * 주문금액이 큰 단체 주문에서 쿠폰 부담이 과도하게 커지지 않도록
+     * 5~12% 범위로 낮추고, 최대 15,000원까지만 적용한다.
      */
     private int calculateLossScenarioCouponCost(
-            int totalAmount,
-            int currentCouponCost
+        int totalAmount,
+        int currentCouponCost
     ) {
-        int couponMinimum = calculateLossCouponAmount(
-                totalAmount,
-                15
+        int couponMinimum = Math.min(
+            calculateLossCouponAmount(totalAmount, 5),
+            15000
         );
-        int couponLimit = calculateLossCouponAmount(
-                totalAmount,
-                30
+
+        int couponLimit = Math.min(
+            calculateLossCouponAmount(totalAmount, 12),
+            15000
         );
 
         if (couponLimit <= 0) {
             return 0;
         }
 
+        if (couponMinimum > couponLimit) {
+            couponMinimum = couponLimit;
+        }
+
         int promotionalCouponCost = randomInt(
-                couponMinimum,
-                couponLimit
+            couponMinimum,
+            couponLimit
         );
 
         return Math.min(
-                Math.max(currentCouponCost, promotionalCouponCost),
-                couponLimit
+            Math.max(currentCouponCost, promotionalCouponCost),
+            couponLimit
         );
     }
 
