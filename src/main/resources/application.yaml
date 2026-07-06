@@ -1,0 +1,47 @@
+server:
+  port: 8080
+  error:
+    include-stacktrace: always
+    include-message: always
+
+spring:
+  application:
+    name: DeliveryInsider
+
+  datasource:
+    url: jdbc:mysql://${DB_HOST:localhost}:${DB_PORT:3306}/${DB_NAME:deliveryinsider}?serverTimezone=Asia/Seoul&characterEncoding=UTF-8
+    username: ${DB_USER:root}
+    password: ${DB_PASSWORD:msa505}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+
+mybatis:
+  mapper-locations: classpath:mapper/**/*Mapper.xml
+  type-aliases-package: com.deliveryinsider
+  configuration:
+    map-underscore-to-camel-case: true
+
+logging:
+  file:
+    name: logs/error.log
+  level:
+    root: info
+    com.deliveryinsider: debug
+    org.springframework.security: debug
+
+security:
+  jwt:
+    secure: false
+    issuer: DeliveryInsider
+    type: JWT
+    access-token-expiry: 1800000 
+    refresh-token-expiry: 1296000000
+    refresh-token-cookie-name: refresh-token
+    refresh-token-cookie-expiry: 1296000
+    secret: ${JWT_SECRET:ZGVsaXZlcnktaW5zaWRlci1qd3Qtc2VjcmV0LWtleS0yMDI2LXNwcmluZy1ib290}
+    header-key: Authorization
+    scheme: Bearer
+    reiss-uri: /api/auth/reissue-token
+
+cors:
+  allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:5173,http://localhost:3000}
+  max-age: 3600

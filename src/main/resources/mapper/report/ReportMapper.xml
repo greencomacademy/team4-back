@@ -1,0 +1,745 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper
+    PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+    "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.deliveryinsider.domain.report.mapper.ReportMapper">
+
+    <resultMap id="reportSummaryProjectionResultMap"
+               type="com.deliveryinsider.domain.report.projections.ReportSummaryProjection">
+
+        <result property="totalOrderCount"
+                column="total_order_count"/>
+
+        <result property="completedOrderCount"
+                column="completed_order_count"/>
+
+        <result property="canceledOrderCount"
+                column="canceled_order_count"/>
+
+        <result property="totalSales"
+                column="total_sales"/>
+
+        <result property="totalNetProfit"
+                column="total_net_profit"/>
+
+        <result property="requestRiskCount"
+                column="request_risk_count"/>
+
+        <result property="lossRiskCount"
+                column="loss_risk_count"/>
+
+    </resultMap>
+
+    <select id="findSummary"
+            resultMap="reportSummaryProjectionResultMap">
+
+        SELECT
+        COUNT(*) AS total_order_count,
+
+        COUNT(
+        CASE
+        WHEN o.order_status = 'COMPLETED'
+        THEN 1
+        END
+        ) AS completed_order_count,
+
+        COUNT(
+        CASE
+        WHEN o.order_status = 'CANCELED'
+        THEN 1
+        END
+        ) AS canceled_order_count,
+
+        COALESCE(
+        SUM(
+        CASE
+        WHEN o.order_status = 'COMPLETED'
+        THEN COALESCE(o.total_amount, 0)
+        ELSE 0
+        END
+        ),
+        0
+        ) AS total_sales,
+
+        COALESCE(
+        SUM(
+        CASE
+        WHEN o.order_status = 'COMPLETED'
+        THEN COALESCE(o.net_profit, 0)
+        ELSE 0
+        END
+        ),
+        0
+        ) AS total_net_profit,
+
+        COUNT(
+        CASE
+        WHEN order_request.risk_level IN (
+        'CAUTION',
+        'WARNING',
+        'DANGER'
+        )
+        OR order_request.risk_type IN (
+        'ALLERGY',
+        'DISPUTE',
+        'EXCESSIVE'
+        )
+        THEN 1
+        END
+        ) AS request_risk_count,
+
+        COUNT(
+        CASE
+        WHEN COALESCE(o.net_profit, 0) &lt;= 0
+        AND o.order_status NOT IN (
+        'CANCELED',
+        'REFUNDED'
+        )
+        THEN 1
+        END
+        ) AS loss_risk_count
+
+        FROM orders o
+
+        LEFT JOIN order_requests order_request
+        ON order_request.order_id = o.id
+
+        LEFT JOIN order_cancellations order_cancellation
+        ON order_cancellation.order_id = o.id
+
+        WHERE o.store_id = #{storeId}
+        AND o.deleted_at IS NULL
+
+        <if test="search.businessStartAt != null and search.businessEndAt != null">
+            AND (
+            (
+            o.ordered_at &gt;= #{search.businessStartAt}
+            AND o.ordered_at &lt; #{search.businessEndAt}
+            )
+            OR (
+            o.order_status = 'COMPLETED'
+            AND o.completed_at IS NOT NULL
+            AND o.completed_at &gt;= #{search.businessStartAt}
+            AND o.completed_at &lt; #{search.businessEndAt}
+            )
+            OR (
+            o.order_status = 'CANCELED'
+            AND o.canceled_at IS NOT NULL
+            AND o.canceled_at &gt;= #{search.businessStartAt}
+            AND o.canceled_at &lt; #{search.businessEndAt}
+            )
+            OR (
+            o.order_status = 'REFUNDED'
+            AND o.refunded_at IS NOT NULL
+            AND o.refunded_at &gt;= #{search.businessStartAt}
+            AND o.refunded_at &lt; #{search.businessEndAt}
+            )
+            )
+        </if>
+
+        <if test="search.platformType != null">
+            AND o.platform_type = #{search.platformType}
+        </if>
+
+        <if test="search.orderStatus != null">
+            AND o.order_status = #{search.orderStatus}
+        </if>
+
+        <if test="search.riskType != null and search.riskType != ''">
+            AND order_request.risk_type = #{search.riskType}
+        </if>
+
+        <if test="search.keyword != null and search.keyword != ''">
+            AND(
+            o.order_no LIKE CONCAT('%', #{search.keyword}, '%')
+            OR o.platform_order_number LIKE CONCAT('%', #{search.keyword}, '%')
+            OR o.delivery_address LIKE CONCAT('%', #{search.keyword}, '%')
+            OR order_request.request_text LIKE CONCAT('%', #{search.keyword}, '%')
+            OR order_cancellation.cancel_reason LIKE CONCAT('%', #{search.keyword}, '%')
+            )
+        </if>
+
+    </select>
+    <resultMap id="reportOrderProjectionResultMap"
+               type="com.deliveryinsider.domain.report.projections.ReportOrderProjection">
+
+        <id property="id"
+            column="id"/>
+
+        <result property="orderNo"
+                column="order_no"/>
+
+        <result property="platformOrderNumber"
+                column="platform_order_number"/>
+
+        <result property="platformType"
+                column="platform_type"/>
+
+        <result property="orderStatus"
+                column="order_status"/>
+
+        <result property="menuSummary"
+                column="menu_summary"/>
+
+        <result property="totalQuantity"
+                column="total_quantity"/>
+
+        <result property="deliveryAddress"
+                column="delivery_address"/>
+
+        <result property="totalAmount"
+                column="total_amount"/>
+
+        <result property="netProfit"
+                column="net_profit"/>
+
+        <result property="commissionAmount"
+                column="commission_amount"/>
+
+        <result property="deliveryFee"
+                column="delivery_fee"/>
+
+        <result property="couponCost"
+                column="coupon_cost"/>
+
+        <result property="platformSupportAmount"
+                column="platform_support_amount"/>
+
+        <result property="totalMenuCost"
+                column="total_menu_cost"/>
+
+        <result property="totalPackagingFee"
+                column="total_packaging_fee"/>
+
+        <result property="orderedAt"
+                column="ordered_at"/>
+
+        <result property="cookingStartedAt"
+                column="cooking_started_at"/>
+
+        <result property="canceledAt"
+                column="canceled_at"/>
+
+        <result property="completedAt"
+                column="completed_at"/>
+
+        <result property="refundedAt"
+                column="refunded_at"/>
+
+        <result property="requestText"
+                column="request_text"/>
+
+        <result property="requestRiskType"
+                column="request_risk_type"/>
+
+        <result property="requestRiskLevel"
+                column="request_risk_level"/>
+
+        <result property="requestAnalysisMessage"
+                column="request_analysis_message"/>
+
+        <result property="cancelType"
+                column="cancel_type"/>
+
+        <result property="cancelReason"
+                column="cancel_reason"/>
+
+        <result property="refundType"
+                column="refund_type"/>
+
+        <result property="refundReason"
+                column="refund_reason"/>
+
+    </resultMap>
+    <select id="findOrders"
+            resultMap="reportOrderProjectionResultMap">
+
+        SELECT
+        o.id,
+        o.order_no,
+        o.platform_order_number,
+        o.platform_type,
+        o.order_status,
+        o.total_amount,
+        o.commission_amount,
+        o.delivery_fee,
+        o.coupon_cost,
+        o.platform_support_amount,
+        o.total_menu_cost,
+        o.total_packaging_fee,
+        o.net_profit,
+        o.delivery_address,
+        o.ordered_at,
+        o.cooking_started_at,
+        o.completed_at,
+        o.canceled_at,
+        o.refunded_at,
+
+        order_request.request_text AS request_text,
+        order_request.risk_type AS request_risk_type,
+        order_request.risk_level AS request_risk_level,
+        order_request.analysis_message AS request_analysis_message,
+
+        order_cancellation.cancel_type AS cancel_type,
+        order_cancellation.cancel_reason AS cancel_reason,
+        order_refund.refund_type AS refund_type,
+        order_refund.refund_reason AS refund_reason,
+
+        COALESCE(item_summary.total_quantity, 0)
+        AS total_quantity,
+
+        CASE
+        WHEN COALESCE(item_summary.item_count, 0) = 0
+        THEN '-'
+
+        WHEN item_summary.item_count = 1
+        THEN first_item.ordered_menu_name
+
+        ELSE CONCAT(
+        first_item.ordered_menu_name,
+        ' 외 ',
+        item_summary.item_count - 1,
+        '개'
+        )
+        END AS menu_summary
+
+        FROM orders o
+
+        LEFT JOIN (
+        SELECT
+        order_id,
+        SUM(quantity) AS total_quantity,
+        COUNT(*) AS item_count,
+        MIN(id) AS first_item_id
+        FROM order_items
+        GROUP BY order_id
+        ) item_summary
+        ON item_summary.order_id = o.id
+
+        LEFT JOIN order_items first_item
+        ON first_item.id = item_summary.first_item_id
+
+        LEFT JOIN order_requests order_request
+        ON order_request.order_id = o.id
+
+        LEFT JOIN order_cancellations order_cancellation
+        ON order_cancellation.order_id = o.id
+
+        LEFT JOIN order_refunds order_refund
+        ON order_refund.order_id = o.id
+
+
+
+        WHERE o.store_id = #{storeId}
+        AND o.deleted_at IS NULL
+
+        <if test="search.businessStartAt != null and search.businessEndAt != null">
+            AND (
+            (
+            o.ordered_at &gt;= #{search.businessStartAt}
+            AND o.ordered_at &lt; #{search.businessEndAt}
+            )
+            OR (
+            o.order_status = 'COMPLETED'
+            AND o.completed_at IS NOT NULL
+            AND o.completed_at &gt;= #{search.businessStartAt}
+            AND o.completed_at &lt; #{search.businessEndAt}
+            )
+            OR (
+            o.order_status = 'CANCELED'
+            AND o.canceled_at IS NOT NULL
+            AND o.canceled_at &gt;= #{search.businessStartAt}
+            AND o.canceled_at &lt; #{search.businessEndAt}
+            )
+            OR (
+            o.order_status = 'REFUNDED'
+            AND o.refunded_at IS NOT NULL
+            AND o.refunded_at &gt;= #{search.businessStartAt}
+            AND o.refunded_at &lt; #{search.businessEndAt}
+            )
+            )
+        </if>
+
+        <if test="search.platformType != null">
+            AND o.platform_type = #{search.platformType}
+        </if>
+
+        <if test="search.orderStatus != null">
+            AND o.order_status = #{search.orderStatus}
+        </if>
+
+        <if test="search.riskType != null and search.riskType != ''">
+            AND order_request.risk_type = #{search.riskType}
+        </if>
+
+        <if test="search.keyword != null and search.keyword != ''">
+            AND(
+            o.order_no LIKE CONCAT('%', #{search.keyword}, '%')
+            OR o.platform_order_number LIKE CONCAT('%', #{search.keyword}, '%')
+            OR o.delivery_address LIKE CONCAT('%', #{search.keyword}, '%')
+            OR order_request.request_text LIKE CONCAT('%', #{search.keyword}, '%')
+            OR order_cancellation.cancel_reason LIKE CONCAT('%', #{search.keyword}, '%')
+            )
+        </if>
+
+        ORDER BY o.ordered_at DESC,
+        o.id DESC
+
+    </select>
+    <resultMap id="reportPlatformProjectionResultMap"
+               type="com.deliveryinsider.domain.report.projections.ReportPlatformProjection">
+
+        <result property="platformType"
+                column="platform_type"/>
+
+        <result property="totalOrderCount"
+                column="total_order_count"/>
+
+        <result property="completedOrderCount"
+                column="completed_order_count"/>
+
+        <result property="canceledOrderCount"
+                column="canceled_order_count"/>
+
+        <result property="totalSales"
+                column="total_sales"/>
+
+        <result property="totalNetProfit"
+                column="total_net_profit"/>
+
+    </resultMap>
+    <select id="findPlatforms"
+            resultMap="reportPlatformProjectionResultMap">
+
+        SELECT
+        o.platform_type,
+
+        COUNT(*) AS total_order_count,
+
+        COUNT(
+        CASE
+        WHEN o.order_status = 'COMPLETED'
+        THEN 1
+        END
+        ) AS completed_order_count,
+
+        COUNT(
+        CASE
+        WHEN o.order_status = 'CANCELED'
+        THEN 1
+        END
+        ) AS canceled_order_count,
+
+        COALESCE(
+        SUM(
+        CASE
+        WHEN o.order_status = 'COMPLETED'
+        THEN COALESCE(o.total_amount, 0)
+        ELSE 0
+        END
+        ),
+        0
+        ) AS total_sales,
+
+        COALESCE(
+        SUM(
+        CASE
+        WHEN o.order_status = 'COMPLETED'
+        THEN COALESCE(o.net_profit, 0)
+        ELSE 0
+        END
+        ),
+        0
+        ) AS total_net_profit
+
+        FROM orders o
+
+        LEFT JOIN order_requests order_request
+        ON order_request.order_id = o.id
+
+        LEFT JOIN order_cancellations order_cancellation
+        ON order_cancellation.order_id = o.id
+
+        WHERE o.store_id = #{storeId}
+        AND o.deleted_at IS NULL
+
+        <if test="search.businessStartAt != null and search.businessEndAt != null">
+            AND (
+            (
+            o.ordered_at &gt;= #{search.businessStartAt}
+            AND o.ordered_at &lt; #{search.businessEndAt}
+            )
+            OR (
+            o.order_status = 'COMPLETED'
+            AND o.completed_at IS NOT NULL
+            AND o.completed_at &gt;= #{search.businessStartAt}
+            AND o.completed_at &lt; #{search.businessEndAt}
+            )
+            OR (
+            o.order_status = 'CANCELED'
+            AND o.canceled_at IS NOT NULL
+            AND o.canceled_at &gt;= #{search.businessStartAt}
+            AND o.canceled_at &lt; #{search.businessEndAt}
+            )
+            OR (
+            o.order_status = 'REFUNDED'
+            AND o.refunded_at IS NOT NULL
+            AND o.refunded_at &gt;= #{search.businessStartAt}
+            AND o.refunded_at &lt; #{search.businessEndAt}
+            )
+            )
+        </if>
+
+        <if test="search.platformType != null">
+            AND o.platform_type = #{search.platformType}
+        </if>
+
+        <if test="search.orderStatus != null">
+            AND o.order_status = #{search.orderStatus}
+        </if>
+
+        <if test="search.riskType != null and search.riskType != ''">
+            AND order_request.risk_type = #{search.riskType}
+        </if>
+
+        <if test="search.keyword != null and search.keyword != ''">
+            AND(
+            o.order_no LIKE CONCAT('%', #{search.keyword}, '%')
+            OR o.platform_order_number LIKE CONCAT('%', #{search.keyword}, '%')
+            OR o.delivery_address LIKE CONCAT('%', #{search.keyword}, '%')
+            OR order_request.request_text LIKE CONCAT('%', #{search.keyword}, '%')
+            OR order_cancellation.cancel_reason LIKE CONCAT('%', #{search.keyword}, '%')
+            )
+        </if>
+
+        GROUP BY o.platform_type
+
+        ORDER BY total_sales DESC,
+        total_order_count DESC
+
+    </select>
+    <resultMap id="reportCancellationProjectionResultMap"
+               type="com.deliveryinsider.domain.report.projections.ReportCancellationProjection">
+
+        <id property="id"
+            column="id"/>
+
+        <result property="orderNo"
+                column="order_no"/>
+
+        <result property="platformOrderNumber"
+                column="platform_order_number"/>
+
+        <result property="platformType"
+                column="platform_type"/>
+
+        <result property="previousStatus"
+                column="previous_status"/>
+
+        <result property="menuSummary"
+                column="menu_summary"/>
+
+        <result property="totalQuantity"
+                column="total_quantity"/>
+
+        <result property="totalAmount"
+                column="total_amount"/>
+
+        <result property="netProfit"
+                column="net_profit"/>
+
+        <result property="cancelType"
+                column="cancel_type"/>
+
+        <result property="cancelReason"
+                column="cancel_reason"/>
+
+        <result property="canceledByType"
+                column="canceled_by_type"/>
+
+        <result property="canceledByUserId"
+                column="canceled_by_user_id"/>
+
+        <result property="orderedAt"
+                column="ordered_at"/>
+
+        <result property="canceledAt"
+                column="canceled_at"/>
+
+        <result property="requestText"
+                column="request_text"/>
+
+        <result property="requestRiskType"
+                column="request_risk_type"/>
+
+        <result property="requestRiskLevel"
+                column="request_risk_level"/>
+
+    </resultMap>
+    <resultMap id="reportCancellationSummaryProjectionResultMap"
+               type="com.deliveryinsider.domain.report.projections.ReportCancellationSummaryProjection">
+
+        <result property="cancelType"
+                column="cancel_type"/>
+
+        <result property="cancelCount"
+                column="cancel_count"/>
+
+    </resultMap>
+    <select id="findCancellations"
+            resultMap="reportCancellationProjectionResultMap">
+
+        SELECT
+        o.id,
+        o.order_no,
+        o.platform_order_number,
+        o.platform_type,
+        o.total_amount,
+        o.net_profit,
+        o.ordered_at,
+        o.canceled_at,
+
+        order_cancellation.previous_status AS previous_status,
+        order_cancellation.cancel_type AS cancel_type,
+        order_refund.refund_type AS refund_type,
+        order_refund.refund_reason AS refund_reason,
+        order_cancellation.cancel_reason AS cancel_reason,
+        order_cancellation.canceled_by_type AS canceled_by_type,
+        order_cancellation.canceled_by_user_id AS canceled_by_user_id,
+
+        order_request.request_text AS request_text,
+        order_request.risk_type AS request_risk_type,
+        order_request.risk_level AS request_risk_level,
+
+        COALESCE(item_summary.total_quantity, 0)
+        AS total_quantity,
+
+        CASE
+        WHEN COALESCE(item_summary.item_count, 0) = 0
+        THEN '-'
+
+        WHEN item_summary.item_count = 1
+        THEN first_item.ordered_menu_name
+
+        ELSE CONCAT(
+        first_item.ordered_menu_name,
+        ' 외 ',
+        item_summary.item_count - 1,
+        '개'
+        )
+        END AS menu_summary
+
+        FROM orders o
+
+        INNER JOIN order_cancellations order_cancellation
+        ON order_cancellation.order_id = o.id
+
+        LEFT JOIN order_requests order_request
+        ON order_request.order_id = o.id
+
+        LEFT JOIN (
+        SELECT
+        order_id,
+        SUM(quantity) AS total_quantity,
+        COUNT(*) AS item_count,
+        MIN(id) AS first_item_id
+        FROM order_items
+        GROUP BY order_id
+        ) item_summary
+        ON item_summary.order_id = o.id
+
+        LEFT JOIN order_items first_item
+        ON first_item.id = item_summary.first_item_id
+
+        LEFT JOIN order_refunds order_refund
+        ON order_refund.order_id = o.id
+
+        WHERE o.store_id = #{storeId}
+        AND o.deleted_at IS NULL
+        AND o.order_status = 'CANCELED'
+
+        <if test="search.businessStartAt != null">
+            AND o.canceled_at &gt;= #{search.businessStartAt}
+        </if>
+
+        <if test="search.businessEndAt != null">
+            AND o.canceled_at &lt; #{search.businessEndAt}
+        </if>
+
+        <if test="search.platformType != null">
+            AND o.platform_type = #{search.platformType}
+        </if>
+
+        <if test="search.riskType != null and search.riskType != ''">
+            AND order_request.risk_type = #{search.riskType}
+        </if>
+
+        <if test="search.keyword != null and search.keyword != ''">
+            AND(
+            o.order_no LIKE CONCAT('%', #{search.keyword}, '%')
+            OR o.platform_order_number LIKE CONCAT('%', #{search.keyword}, '%')
+            OR order_request.request_text LIKE CONCAT('%', #{search.keyword}, '%')
+            OR order_cancellation.cancel_type LIKE CONCAT('%', #{search.keyword}, '%')
+            OR order_cancellation.cancel_reason LIKE CONCAT('%', #{search.keyword}, '%')
+            OR order_refund.refund_reason LIKE CONCAT('%', #{search.keyword}, '%')
+
+            )
+        </if>
+
+        ORDER BY o.canceled_at DESC,
+        o.id DESC
+
+    </select>
+    <select id="findCancellationSummary"
+            resultMap="reportCancellationSummaryProjectionResultMap">
+
+        SELECT
+        order_cancellation.cancel_type AS cancel_type,
+        COUNT(*) AS cancel_count
+
+        FROM orders o
+
+        INNER JOIN order_cancellations order_cancellation
+        ON order_cancellation.order_id = o.id
+
+        LEFT JOIN order_requests order_request
+        ON order_request.order_id = o.id
+
+        WHERE o.store_id = #{storeId}
+        AND o.deleted_at IS NULL
+        AND o.order_status = 'CANCELED'
+
+        <if test="search.businessStartAt != null">
+            AND o.canceled_at &gt;= #{search.businessStartAt}
+        </if>
+
+        <if test="search.businessEndAt != null">
+            AND o.canceled_at &lt; #{search.businessEndAt}
+        </if>
+
+        <if test="search.platformType != null">
+            AND o.platform_type = #{search.platformType}
+        </if>
+
+        <if test="search.riskType != null and search.riskType != ''">
+            AND order_request.risk_type = #{search.riskType}
+        </if>
+
+        <if test="search.keyword != null and search.keyword != ''">
+            AND(
+            o.order_no LIKE CONCAT('%', #{search.keyword}, '%')
+            OR o.platform_order_number LIKE CONCAT('%', #{search.keyword}, '%')
+            OR order_request.request_text LIKE CONCAT('%', #{search.keyword}, '%')
+            OR order_cancellation.cancel_type LIKE CONCAT('%', #{search.keyword}, '%')
+            OR order_cancellation.cancel_reason LIKE CONCAT('%', #{search.keyword}, '%')
+            )
+        </if>
+
+        GROUP BY order_cancellation.cancel_type
+
+        ORDER BY cancel_count DESC,
+        order_cancellation.cancel_type ASC
+
+    </select>
+</mapper>
