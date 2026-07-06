@@ -26,6 +26,9 @@ public class Order {
     // 화면에 표시할 주문번호
     private String orderNo;
 
+    // 외부 배달 플랫폼의 주문번호
+    private String platformOrderNumber;
+
     // 배민, 쿠팡이츠, 요기요, 땡겨요
     private PlatformType platformType;
 
@@ -58,6 +61,9 @@ public class Order {
 
     // 주문 전체 예상 조리시간
     private Integer totalCookingTime;
+
+    // 주문별 배달 주소
+    private String deliveryAddress;
 
     // 실제 주문이 들어온 시각
     private LocalDateTime orderedAt;

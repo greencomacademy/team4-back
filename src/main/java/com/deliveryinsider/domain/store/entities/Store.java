@@ -1,6 +1,7 @@
 package com.deliveryinsider.domain.store.entities;
 
 import com.deliveryinsider.domain.store.enums.BusinessStatus;
+import com.deliveryinsider.domain.store.enums.OperationStatus;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
@@ -33,12 +34,17 @@ public class Store {
     private BusinessStatus businessStatus;
 
     private LocalDateTime businessVerifiedAt;
+    
+    private OperationStatus operationStatus;
 
 
 
 
     // 동시에 처리 가능한 주문 수
     private Integer kitchenCapacity;
+
+    // 배달 최소 주문 금액
+    private Integer minimumOrderAmount;
 
     // 매일 반복되는 영업 시작 시각
     private LocalTime openTime;

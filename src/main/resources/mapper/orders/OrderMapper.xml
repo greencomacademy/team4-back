@@ -16,7 +16,10 @@
 
         <result property="orderNo"
                 column="order_no"/>
-
+        
+        <result property="platformOrderNumber"
+                column="platform_order_number"/>
+        
         <result property="platformType"
                 column="platform_type"/>
 
@@ -49,7 +52,10 @@
 
         <result property="totalCookingTime"
                 column="total_cooking_time"/>
-
+        
+        <result property="deliveryAddress"
+                column="delivery_address"/>
+        
         <result property="orderedAt"
                 column="ordered_at"/>
 
@@ -84,6 +90,9 @@
         <result property="orderNo"
                 column="order_no"/>
 
+        <result property="platformOrderNumber"
+                column="platform_order_number"/>
+
         <result property="platformType"
                 column="platform_type"/>
 
@@ -105,11 +114,35 @@
         <result property="menuSummary"
                 column="menu_summary"/>
 
+        <result property="deliveryAddress"
+                column="delivery_address"/>
+
         <result property="orderedAt"
                 column="ordered_at"/>
 
         <result property="cookingStartedAt"
                 column="cooking_started_at"/>
+
+        <result property="requestText"
+                column="request_text"/>
+
+        <result property="requestRiskType"
+                column="request_risk_type"/>
+
+        <result property="requestRiskLevel"
+                column="request_risk_level"/>
+
+        <result property="requestAnalysisMessage"
+                column="request_analysis_message"/>
+
+        <result property="cancelType"
+                column="cancel_type"/>
+
+        <result property="cancelReason"
+                column="cancel_reason"/>
+
+        <result property="canceledAt"
+                column="canceled_at"/>  
 
     </resultMap>
     <!--
@@ -118,6 +151,9 @@
 -->
     <resultMap id="orderOperationSummaryProjectionResultMap"
                type="com.deliveryinsider.domain.order.projections.OrderOperationSummaryProjection">
+
+        <result property="todayOrderCount"
+                column="today_order_count"/>
 
         <result property="progressOrderCount"
                 column="progress_order_count"/>
@@ -131,8 +167,26 @@
         <result property="deliveringCount"
                 column="delivering_count"/>
 
+        <result property="completedCount"
+                column="completed_count"/>
+
+        <result property="canceledCount"
+                column="canceled_count"/>
+
+        <result property="todaySales"
+                column="today_sales"/>
+
+        <result property="todayNetProfit"
+                column="today_net_profit"/>
+
         <result property="expectedProgressNetProfit"
                 column="expected_progress_net_profit"/>
+
+        <result property="requestRiskCount"
+                column="request_risk_count"/>
+
+        <result property="lossRiskCount"
+                column="loss_risk_count"/>
 
     </resultMap>
 
@@ -145,6 +199,7 @@
         INSERT INTO orders (
             store_id,
             order_no,
+            platform_order_number,
             platform_type,
             order_status,
             total_amount,
@@ -156,6 +211,7 @@
             total_packaging_fee,
             net_profit,
             total_cooking_time,
+            delivery_address,
             ordered_at,
             cooking_started_at,
             completed_at,
@@ -165,6 +221,7 @@
         VALUES (
                    #{storeId},
                    #{orderNo},
+                   #{platformOrderNumber},
                    #{platformType},
                    #{orderStatus},
                    #{totalAmount},
@@ -176,6 +233,7 @@
                    #{totalPackagingFee},
                    #{netProfit},
                    #{totalCookingTime},
+                   #{deliveryAddress},
                    #{orderedAt},
                    #{cookingStartedAt},
                    #{completedAt},
@@ -193,6 +251,7 @@
         SELECT
             id,
             store_id,
+            platform_order_number,
             order_no,
             platform_type,
             order_status,
@@ -205,6 +264,7 @@
             total_packaging_fee,
             net_profit,
             total_cooking_time,
+            delivery_address,
             ordered_at,
             cooking_started_at,
             completed_at,
@@ -228,13 +288,24 @@
         SELECT
         o.id,
         o.order_no,
+        o.platform_order_number,
         o.platform_type,
         o.order_status,
         o.total_amount,
         o.net_profit,
         o.total_cooking_time,
+        o.delivery_address,
         o.ordered_at,
         o.cooking_started_at,
+        o.canceled_at,
+
+        order_request.request_text AS request_text,
+        order_request.risk_type AS request_risk_type,
+        order_request.risk_level AS request_risk_level,
+        order_request.analysis_message AS request_analysis_message,
+
+        order_cancellation.cancel_type AS cancel_type,
+        order_cancellation.cancel_reason AS cancel_reason,
 
         COALESCE(item_summary.total_quantity, 0)
         AS total_quantity,
@@ -270,8 +341,96 @@
         LEFT JOIN order_items first_item
         ON first_item.id = item_summary.first_item_id
 
+        LEFT JOIN order_requests order_request
+        ON order_request.order_id = o.id
+
+        LEFT JOIN order_cancellations order_cancellation
+        ON order_cancellation.order_id = o.id
+
         WHERE o.store_id = #{storeId}
         AND o.deleted_at IS NULL
+
+        <if test="platformType != null">
+            AND o.platform_type = #{platformType}
+        </if>
+
+        <if test="orderStatus != null">
+            AND o.order_status = #{orderStatus}
+        </if>
+
+        ORDER BY o.ordered_at DESC,
+        o.id DESC
+
+    </select>
+    <select id="findTodayByStoreId"
+            resultMap="orderListProjectionResultMap">
+
+        SELECT
+        o.id,
+        o.order_no,
+        o.platform_order_number,
+        o.platform_type,
+        o.order_status,
+        o.total_amount,
+        o.net_profit,
+        o.total_cooking_time,
+        o.delivery_address,
+        o.ordered_at,
+        o.cooking_started_at,
+        o.canceled_at,
+
+        order_request.request_text AS request_text,
+        order_request.risk_type AS request_risk_type,
+        order_request.risk_level AS request_risk_level,
+        order_request.analysis_message AS request_analysis_message,
+
+        order_cancellation.cancel_type AS cancel_type,
+        order_cancellation.cancel_reason AS cancel_reason,
+
+        COALESCE(item_summary.total_quantity, 0)
+        AS total_quantity,
+
+        CASE
+        WHEN COALESCE(item_summary.item_count, 0) = 0
+        THEN '-'
+
+        WHEN item_summary.item_count = 1
+        THEN first_item.ordered_menu_name
+
+        ELSE CONCAT(
+        first_item.ordered_menu_name,
+        ' 외 ',
+        item_summary.item_count - 1,
+        '개'
+        )
+        END AS menu_summary
+
+        FROM orders o
+
+        LEFT JOIN (
+        SELECT
+        order_id,
+        SUM(quantity) AS total_quantity,
+        COUNT(*) AS item_count,
+        MIN(id) AS first_item_id
+        FROM order_items
+        GROUP BY order_id
+        ) item_summary
+        ON item_summary.order_id = o.id
+
+        LEFT JOIN order_items first_item
+        ON first_item.id = item_summary.first_item_id
+
+        LEFT JOIN order_requests order_request
+        ON order_request.order_id = o.id
+
+        LEFT JOIN order_cancellations order_cancellation
+        ON order_cancellation.order_id = o.id
+
+        WHERE o.store_id = #{storeId}
+        AND o.deleted_at IS NULL
+        AND o.ordered_at >= #{businessStartAt}
+        AND o.ordered_at &lt; #{businessEndAt}
 
         <if test="platformType != null">
             AND o.platform_type = #{platformType}
@@ -296,77 +455,135 @@
             resultMap="orderOperationSummaryProjectionResultMap">
 
         SELECT
+        COUNT(*) AS today_order_count,
 
-            /*
-             * 현재 처리 중인 전체 주문 수
-             */
-            COUNT(
-                CASE
-                    WHEN o.order_status IN (
-                                            'WAITING',
-                                            'COOKING',
-                                            'DELIVERING'
-                        )
-                        THEN 1
-                    END
-            ) AS progress_order_count,
+        COUNT(
+        CASE
+        WHEN o.order_status IN (
+        'WAITING',
+        'COOKING',
+        'DELIVERING'
+        )
+        THEN 1
+        END
+        ) AS progress_order_count,
 
-            /*
-             * 현재 접수대기 주문 수
-             */
-            COUNT(
-                CASE
-                    WHEN o.order_status = 'WAITING'
-                        THEN 1
-                    END
-            ) AS waiting_count,
+        COUNT(
+        CASE
+        WHEN o.order_status = 'WAITING'
+        THEN 1
+        END
+        ) AS waiting_count,
 
-            /*
-             * 현재 조리중 주문 수
-             */
-            COUNT(
-                CASE
-                    WHEN o.order_status = 'COOKING'
-                        THEN 1
-                    END
-            ) AS cooking_count,
+        COUNT(
+        CASE
+        WHEN o.order_status = 'COOKING'
+        THEN 1
+        END
+        ) AS cooking_count,
 
-            /*
-             * 현재 배달중 주문 수
-             */
-            COUNT(
-                CASE
-                    WHEN o.order_status = 'DELIVERING'
-                        THEN 1
-                    END
-            ) AS delivering_count,
+        COUNT(
+        CASE
+        WHEN o.order_status = 'DELIVERING'
+        THEN 1
+        END
+        ) AS delivering_count,
 
-            /*
-             * 현재 진행 주문이 모두 완료된다고 가정했을 때의
-             * 예상 순수익 합계
-             */
-            COALESCE(
-                SUM(
-                    CASE
-                        WHEN o.order_status IN (
-                                                'WAITING',
-                                                'COOKING',
-                                                'DELIVERING'
-                            )
-                            THEN COALESCE(
-                            o.net_profit,
-                            0
-                                 )
-                        ELSE 0
-                        END
-                ),
-                0
-            ) AS expected_progress_net_profit
+        COUNT(
+        CASE
+        WHEN o.order_status = 'COMPLETED'
+        THEN 1
+        END
+        ) AS completed_count,
+
+        COUNT(
+        CASE
+        WHEN o.order_status = 'CANCELED'
+        THEN 1
+        END
+        ) AS canceled_count,
+
+        COALESCE(
+        SUM(
+        CASE
+        WHEN o.order_status = 'COMPLETED'
+        THEN COALESCE(o.total_amount, 0)
+        ELSE 0
+        END
+        ),
+        0
+        ) AS today_sales,
+
+        COALESCE(
+        SUM(
+        CASE
+        WHEN o.order_status = 'COMPLETED'
+        THEN COALESCE(o.net_profit, 0)
+        ELSE 0
+        END
+        ),
+        0
+        ) AS today_net_profit,
+
+        COALESCE(
+        SUM(
+        CASE
+        WHEN o.order_status IN (
+        'WAITING',
+        'COOKING',
+        'DELIVERING'
+        )
+        THEN COALESCE(o.net_profit, 0)
+        ELSE 0
+        END
+        ),
+        0
+        ) AS expected_progress_net_profit,
+
+        COUNT(
+            CASE
+            WHEN o.order_status IN (
+            'WAITING',
+            'COOKING',
+            'DELIVERING'
+            )
+            AND (
+            order_request.risk_level IN (
+            'CAUTION',
+            'WARNING',
+            'DANGER'
+            )
+            OR order_request.risk_type IN (
+            'ALLERGY',
+            'DISPUTE',
+            'EXCESSIVE'
+            )
+            )
+            THEN 1
+            END
+        ) AS request_risk_count,
+
+        COUNT(
+        CASE
+        WHEN o.order_status IN (
+            'WAITING',
+            'COOKING',
+            'DELIVERING'
+        )
+        AND COALESCE(o.net_profit, 0)  &lt;= 0
+        THEN 1
+        END
+        ) AS loss_risk_count
 
         FROM orders o
 
+        LEFT JOIN order_requests order_request
+        ON order_request.order_id = o.id
+
         WHERE o.store_id = #{storeId}
-          AND o.deleted_at IS NULL
+        AND o.deleted_at IS NULL
+          AND o.ordered_at >= #{businessStartAt}
+          AND o.ordered_at &lt; #{businessEndAt}
 
     </select>
 
@@ -415,10 +632,11 @@
 
     </update>
     <!-- 로그인 사용자의 매장에 속한 주문 전체 삭제 -->
-    <delete id="deleteAllByStoreId">
+    <delete id="deleteMockOrdersStoreId">
 
         DELETE FROM orders
         WHERE store_id = #{storeId}
+        AND order_no LIKE 'ORD-MOCK-%'
 
     </delete>
 </mapper>

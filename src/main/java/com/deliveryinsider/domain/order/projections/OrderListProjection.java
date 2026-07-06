@@ -18,6 +18,7 @@ public class OrderListProjection {
 
     private Long id;
     private String orderNo;
+    private String platformOrderNumber;
     private PlatformType platformType;
     private OrderStatus orderStatus;
 
@@ -32,5 +33,17 @@ public class OrderListProjection {
     private String menuSummary;
 
     private LocalDateTime orderedAt;
+    private String deliveryAddress;
     private LocalDateTime cookingStartedAt;
+    
+    // 고객 요구사항 요약
+    private String requestText;
+    private String requestRiskType;
+    private String requestRiskLevel;
+    private String requestAnalysisMessage;
+
+    // 취소 이력 요약
+    private String cancelType;
+    private String cancelReason;
+    private LocalDateTime canceledAt;
 }

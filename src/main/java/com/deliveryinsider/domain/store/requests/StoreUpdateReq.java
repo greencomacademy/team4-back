@@ -1,5 +1,6 @@
 package com.deliveryinsider.domain.store.requests;
 
+import com.deliveryinsider.domain.store.enums.OperationStatus;
 import jakarta.validation.constraints.AssertTrue;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.Pattern;
@@ -15,6 +16,12 @@ public record StoreUpdateReq(
                 message = "매장명은 공백일 수 없습니다."
         )
         String storeName,
+        
+        @Size(max = 20, message = "가게번호는 20자 이하 여야 합니다.")
+        String phone,
+
+        @Size(max = 20, message = "가게 상태는 최대 20글자 입니다.")
+        String businessStatus,
 
         @Pattern(
                 regexp = "^\\d{10}$",
@@ -46,6 +53,9 @@ public record StoreUpdateReq(
         @Min(value = 1, message = "주방 처리량은 1 이상이어야 합니다.")
         Integer kitchenCapacity,
 
+        @Min(value = 0, message = "최소주문금액은 0 이상이어야 합니다.")
+        Integer minimumOrderAmount,
+
         /*
          * PATCH 요청이므로 null이면 기존 영업 시작 시간을 유지한다.
          */
@@ -54,7 +64,9 @@ public record StoreUpdateReq(
         /*
          * PATCH 요청이므로 null이면 기존 영업 종료 시간을 유지한다.
          */
-        LocalTime closeTime
+        LocalTime closeTime,
+
+        OperationStatus operationStatus
 
 ) {
 
@@ -64,12 +76,17 @@ public record StoreUpdateReq(
     @AssertTrue(message = "수정할 매장 정보를 하나 이상 입력해야 합니다.")
     public boolean isUpdateFieldPresent() {
         return storeName != null
+                || phone != null
                 || businessNumber != null
                 || address != null
                 || addressDetail != null
                 || industryType != null
                 || kitchenCapacity != null
+                || minimumOrderAmount != null
                 || openTime != null
-                || closeTime != null;
+                || closeTime != null
+                || businessStatus != null
+                || operationStatus != null ;
+
     }
 }
