@@ -40,7 +40,7 @@ security:
     secret: ${JWT_SECRET:ZGVsaXZlcnktaW5zaWRlci1qd3Qtc2VjcmV0LWtleS0yMDI2LXNwcmluZy1ib290}
     header-key: Authorization
     scheme: Bearer
-    reiss-uri: /api/auth/reissue-token
+    reiss-uri: /api/auth/
 
 cors:
   allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:5173,http://localhost:3000}
